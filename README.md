@@ -3,7 +3,7 @@ NeedJS
 
 Really simple synchronous CommonJS module implementation for the browser.
 
-This implementation is designed to be a subset of the NodeJS module implementation so that targetting NeedJS will always result in NodeJS being supported, but _not_ vise versa.
+This implementation is designed to be a subset of the NodeJS module implementation so that targetting NeedJS will always result in NodeJS and NodeJS compilers being supported, but _not_ vise versa.
 
 _Note: No attempt is made to replicate the NodeJS core modules for browsers. See browserify if you need NodeJS core modules in the browser._
 
@@ -35,4 +35,4 @@ Related
 -------
 
 * needjs-build
-    * Compile a script and all dependencies into a stand-alone JavaScript file.
+    * Compile a script with CommonJS require() calls into a single stand-alone script.
