@@ -1,7 +1,11 @@
 NeedJS
 ======
 
-Really simple synchronous module implementation for the browser.
+Really simple synchronous CommonJS module implementation for the browser.
+
+This implementation is designed to be a subset of the NodeJS module implementation so that targetting NeedJS will always result in NodeJS being supported, but _not_ vise versa.
+
+_Note: No attempt is made to replicate the NodeJS core modules for browsers. See browserify if you need NodeJS core modules in the browser._
 
 Features
 --------
@@ -10,8 +14,9 @@ Features
     * Relative module paths only.
     * Secure (sandbox) mode only (module.paths and module.uri do not exist).
 * Compatible with NodeJS require()
-    * Scripts written to load modules using NeedJS require() in the browser, will work in NodeJS require() assuming the same relative file structure.
-    * Scripts written to work with NodeJS require() will only work with NeedJS in the browser if all require() calls use relative module paths.
+    * NeedJS implements a subset of the features supported by NodeJS. The feature subset is a _stricter_ implementation of CommonJS modules than NodeJS modules. This means that NodeJS supports everything NeedJS does, but NeedJS does not support all of NodeJS's module features.
+    * Scripts written to work NeedJS require() in the browser, will work in NodeJS require() assuming the same relative file structure.
+    * Scripts written to work with NodeJS require() will only work with NeedJS require() in the browser if all modules paths are relative.
         * When top-level modules are supported, then only NodeJS core modules will be unsupported in NeedJS.
 
 Roadmap
