@@ -25,7 +25,9 @@ Roadmap
 * Top-level module support
     * NPM compatible by default.
         * Default module directory to "node_modules".
-        * Allow directory as module (package.json, index.js).
+        * Allow directory as module.
+            * Default module manifest to "package.json"
+            * Search for "index.js" in module directory if no manifest file is found.
     * Allow customization of module directory (something other than node_modules).
     * Allow customization of module manifest (something other than package.json).
 
