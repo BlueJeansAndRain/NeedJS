@@ -2,20 +2,16 @@ void function()
 {
 	"use strict";
 
-	function getter(uri)
-	{
-
-	}
-
-	var resolve = (function(getter, options)
+	// This function should be identical to the one found in needjs-build.
+	function resolver(getter, options)
 	{
 		// http://nodejs.org/api/modules.html#modules_all_together
 
 		if (!(options instanceof Object))
 			options = {};
 
-		var directory = typeof options.directory === 'string' ? options.directory : 'node_modules';
-		var manifest = typeof options.manifest === 'string' ? options.manifest : 'package.json';
+		var directory = options.directory == null ? 'node_modules' : ((options.directory && typeof options.directory === 'string') ? options.directory : false);
+		var manifest = options.manifest == null ? 'package.json' : ((options.manifest && typeof options.manifest === 'string') ? options.manifest : false);
 		var cache = {};
 
 		function loadPath(id)
@@ -117,5 +113,15 @@ void function()
 				return loadTop(start, name);
 			}
 		};
-	}(getter, window.needjs));
+	}
+
+	// XMLHttpRequest wrapper
+	function getter(uri)
+	{
+
+	}
+
+	var resolve = resolver(getter, window.needjs);
+
+	// TODO: Load main module.
 }();
