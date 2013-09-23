@@ -1,0 +1,24 @@
+{
+  "name": "needjs",
+  "version": "0.1.0",
+  "description": "Really simple synchronous CommonJS module implementation for the browser.",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/BlueJeansAndRain/needjs.git"
+  },
+  "keywords": [
+    "commonjs",
+    "module",
+    "require"
+  ],
+  "author": "Chris Ackerman <bluejeansandrain@gmail.com> (http://parallelnoodles.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BlueJeansAndRain/needjs/issues"
+  }
+}
