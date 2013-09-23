@@ -9,3 +9,4 @@
 * CommonJS `require` free variable implemented
     * Referentially identical to `module.require`
 * CommonJS `module.id` property implemented
+* CommonJS `module.main` property implemented
