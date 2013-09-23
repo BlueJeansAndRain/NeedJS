@@ -2,12 +2,76 @@ void function()
 {
 	"use strict";
 
-	// Universal Resolver
+	// Default Script Get Function
+	// ---------------------------
+	//
+	// Use NodeJS "fs" module if available, or XMLHttpRequest if that's available. If neither is
+	// available, then set the default to false which means that a get function _must_ be given via
+	// the options.get property when calling need().
+	//
+	var defaultGet = (function()
+	{
+		try
+		{
+			var fs = require('fs');
+
+			return function(path)
+			{
+				if (!fs.existsSync(path))
+					return false;
+
+				try
+				{
+					var stat = fs.statSync(path);
+					if (!stat.isFile())
+						return false;
+
+					return fs.readFileSync(path, { encoding: 'utf8' });
+				}
+				catch (e) {}
+
+				return false;
+			};
+		}
+		catch (e) {}
+
+		if (typeof XMLHttpRequest !== 'undefined')
+		{
+			return function(path)
+			{
+				var req = new XMLHttpRequest();
+				req.open('get', path, false);
+				if (options.noCache)
+					req.setRequestHeader('pragma', 'no-cache');
+				req.send();
+
+				if (req.responseText == null)
+					return false;
+
+				return req.responseText;
+			};
+		}
+
+		return false;
+	}());
+
+	// Universal Resolver Factory
+	// --------------------------
+	//
+	// Used in both the browser module system and in the NodeJS compiler.
+	//
+	// This is a factory method that creates a resolve(startPath, name) function when called.
+	//
 	// * http://nodejs.org/api/modules.html#modules_all_together
-	function need(getter, options)
+	//
+	function need(options)
 	{
 		if (!(options instanceof Object))
 			options = {};
+
+		var get = options.get == null ? defaultGet : options.get;
+		if (!(get instanceof Function))
+			throw new Error("missing get function");
 
 		var directory = options.directory == null ? 'node_modules' : ((options.directory && typeof options.directory === 'string') ? options.directory : false);
 		var manifest = options.manifest == null ? 'package.json' : ((options.manifest && typeof options.manifest === 'string') ? options.manifest : false);
@@ -24,16 +88,23 @@ void function()
 			if (cache.hasOwnProperty(path))
 				return cache[path];
 
-			var source = getter(path);
-			if (typeof source === 'string')
-			{
-				var module = cache[path] = { source: source };
-				Object.defineProperty(module, 'id', { value: path, configurable: false, enumerable: true, writable: false });
+			var source;
 
-				return module;
+			try
+			{
+				source = get(path);
+				if (typeof source !== 'string')
+					return false;
+			}
+			catch (e)
+			{
+				return false;
 			}
 
-			return false;
+			var module = cache[path] = { source: source };
+			Object.defineProperty(module, 'id', { value: path, configurable: false, enumerable: true, writable: false });
+
+			return module;
 		}
 
 		function loadFile(name)
@@ -158,9 +229,9 @@ void function()
 		return resolve;
 	}
 
-	if (typeof module !== 'undefined')
+	if (typeof module !== 'undefined' && module.exports)
 	{
-		// Required as module. Export the universal resolver.
+		// Required as module. Export the universal resolver factory.
 
 		module.exports = need;
 	}
@@ -168,18 +239,11 @@ void function()
 	{
 		// Used in the browser. Initialize browser modules support.
 
-		// Backfill Object.defineProperty for browsers that do not support ECMAScript 5th edition.
-		if (Object.defineProperty == null)
-		{
-			Object.defineProperty = function(obj, name, options)
-			{
-				obj[name] = options.value instanceof Object ? options.value : void 0;
-			};
-		}
-
 		var options = window.needjs;
 		if (!(options instanceof Object))
 			options = {};
+
+		var resolve = need(options);
 
 		var mainModule = void 0;
 
@@ -195,20 +259,6 @@ void function()
 
 			return main;
 		}());
-
-		var resolve = need(function getter(uri)
-		{
-			var req = new XMLHttpRequest();
-			req.open('get', uri, false);
-			if (options.noCache)
-				req.setRequestHeader('pragma', 'no-cache');
-			req.send();
-
-			if (req.responseText == null)
-				return false;
-
-			return req.responseText;
-		}, options);
 
 		function require(options, start, name)
 		{
@@ -245,6 +295,15 @@ void function()
 		}
 
 		var start = window.location.pathname.replace(/[^\/]+$/, '');
+
+		// Backfill Object.defineProperty for browsers that do not support ECMAScript 5th edition.
+		if (Object.defineProperty == null)
+		{
+			Object.defineProperty = function(obj, name, options)
+			{
+				obj[name] = options.value instanceof Object ? options.value : void 0;
+			};
+		}
 
 		// Require core modules.
 		if (options.core instanceof Object)
