@@ -6,7 +6,7 @@ Really simple synchronous module implementation.
 Features
 --------
 
-* Partial implementation of the CommonJS modules specification (1.1)
+* Partial implementation of the CommonJS modules specification (1.1.1)
     * Implements relative module paths only.
     * Secure (sandbox) mode only (module.paths and module.uri do not exist).
 
