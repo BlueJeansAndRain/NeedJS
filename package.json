@@ -1,7 +1,7 @@
 {
   "name": "needjs",
   "version": "0.1.0",
-  "description": "Really simple synchronous CommonJS module implementation for the browser.",
+  "description": "CommonJS module implementation for the browser and compiler for NodeJS.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
