@@ -29,32 +29,177 @@ void function()
 		};
 	}
 
-	// Universal Resolver Factory
-	// --------------------------
-	//
-	// Used in both the browser module system and in the NodeJS compiler.
-	//
-	// This is a factory method that creates a resolve(startPath, name) function when called. The
-	// returned resolve method returns a proto-module object with an "id" property and a "source"
-	// property, or false if the module name cannot be resolved.
-	//
-	// * http://nodejs.org/api/modules.html#modules_all_together
-	//
-	function need(options)
+	// Define multiple properties with similar configuration values.
+	function define(target, options, source)
+	{
+		if (typeof source === 'undefined')
+		{
+			source = options;
+			options = null;
+		}
+
+		if (options instanceof Object)
+		{
+			options = {
+				enumerable: options.enumerable == null ? true : !!options.enumerable,
+				writable: options.writable == null ? true : !!options.writable,
+				configurable: options.configurable == null ? true : !!options.configurable
+			};
+		}
+		else
+		{
+			options = {
+				enumerable: true,
+				writable: true,
+				configurable: true
+			};
+		}
+
+		for (var prop in source)
+		{
+			if (source[prop] == null)
+				continue;
+
+			options.value = source[prop];
+			Object.defineProperty(target, prop, options);
+		}
+
+		return target;
+	}
+
+	// Combine path parts into a single path.
+	function joinPath()
+	{
+		var parts = Array.prototype.slice.call(arguments, 0),
+			i = parts.length,
+			part;
+
+		while (i--)
+		{
+			part = ''+parts[i];
+			if (part.charAt(0) === '/')
+				break;
+		}
+
+		parts = parts.slice(i).join('/').split('/');
+
+		var path = [];
+		for (i = parts.length; i >= 0; --i)
+		{
+			switch (parts[i])
+			{
+				case '.':
+					break;
+				case '..':
+					i--;
+					break;
+				default:
+					path.push(parts[i]);
+					break;
+			}
+		}
+
+		return path.reverse().join('/').replace(/\/{2,}/g, '/');
+	}
+
+	// See: http://nodejs.org/api/modules.html#modules_all_together
+	function Resolver(options)
 	{
 		if (!(options instanceof Object))
 			options = {};
 
-		var get = options.get;
-		if (!(get instanceof Function))
+		define(this, { writable: true, configurable: true }, {
+			_cache: {},
+			_directory: this._initDirectory(options.directory),
+			_manifest: this._initManifest(options.manifest),
+			_get: this._initGet(options.get),
+			_core: this._initCore(options.core),
+			_corePath: null,
+			_log: options.log instanceof Function ? options.log : function() {}
+		});
+
+		if (options.corePath != null)
+			this.setCorePath(options.corePath);
+	}
+	define(Resolver.prototype, {
+		resolve: function(start, name)
 		{
+			if (typeof start !== 'string')
+				throw new Error("non-string start path");
+			if (start.charAt(0) !== '/')
+				throw new Error("non-absolute resolve start path");
+
+			if (!(name instanceof this.Name))
+				name = new this.Name(name);
+
+			if (name.type === 'top')
+			{
+				if (!name.ignoreCore && this._core.hasOwnProperty(name))
+				{
+					if (!this._corePath)
+						throw new Error("core path undefined");
+
+					return this.resolve(this._corePath, this._core[name.value]);
+				}
+
+				return this._loadTop(start, name.value);
+			}
+
+			// relative or absolute
+
+			var path = (name.type === 'relative' ? joinPath('/', start, name.value) : name.value);
+
+			return this._loadFile(path) || this._loadDirectory(path);
+		},
+		setCorePath: function(path)
+		{
+			if (this._corePath)
+				throw new Error("core path redefinition");
+			if (typeof path !== 'string')
+				throw new Error("non-string core path");
+			if (path.charAt(0) !== '/')
+				throw new Error("non-absolute core path");
+
+			this._corePath = path;
+
+			return this;
+		}
+	});
+	define(Resolver.prototype, { enumerable: false }, {
+		_initDirectory: function(directory)
+		{
+			if (directory == null)
+				return 'node_modules';
+			else if (directory === false)
+				return false;
+			else
+				this._validatePathPart(directory);
+
+			return directory;
+		},
+		_initManifest: function(manifest)
+		{
+			if (manifest == null)
+				return 'package.json';
+			else if (manifest === false)
+				return false;
+			else
+				this._validatePathPart(manifest);
+
+			return manifest;
+		},
+		_initGet: function(get)
+		{
+			if (get instanceof Function)
+				return get;
+
 			try
 			{
 				// First try to require the NodeJS "fs" module. If it's present, then use the
 				// default get function for NodeJS.
 
 				var fs = require('fs');
-				get = nodeGet.bind(null, fs);
+				get = this.get.node.bind(this, fs);
 			}
 			catch (e)
 			{
@@ -62,58 +207,78 @@ void function()
 				// the browser which uses XMLHttpRequest.
 
 				if (typeof window.XMLHttpRequest !== 'undefined')
-					get = browserGet.bind(null, window.XMLHttpRequest, !!options.noCache);
+					get = this.get.browser.bind(this, window.XMLHttpRequest);
 				else if (typeof window.ActiveXObject)
-					get = browserGet.bind(null, window.ActiveXObject('MSXML2.XMLHTTP.3.0'), !!options.noCache);
+					get = this.get.browser.bind(this, window.ActiveXObject('MSXML2.XMLHTTP.3.0'));
 				else
 					throw new Error("missing get function");
 			}
-		}
 
-		var directory = options.directory == null ? 'node_modules' : ((options.directory && typeof options.directory === 'string') ? options.directory : false);
-		var manifest = options.manifest == null ? 'package.json' : ((options.manifest && typeof options.manifest === 'string') ? options.manifest : false);
-		var log = options.log instanceof Function ? options.log : function() {};
-
-		var cache = {};
-		var core = {};
-
-		function loadPath(path)
+			return get;
+		},
+		_initCore: function(core)
 		{
-			if (cache.hasOwnProperty(path))
-				return cache[path];
+			if (!(core instanceof Object))
+				return {};
+
+			var clean = {},
+				coreName,
+				name;
+
+			for (coreName in core)
+			{
+				name = core[coreName];
+
+				coreName = new this.Name(coreName, true);
+				if (coreName.type !== 'top')
+					throw new Error("non-top-level core module name");
+				if (this._core.hasOwnProperty(coreName))
+					throw new Error("core module redefinition");
+
+				if (typeof name === 'string')
+					this._core[coreName.value] = new this.Name(name, true);
+				else if (name)
+					this._core[coreName.value] = coreName;
+			}
+
+			return clean;
+		},
+		_loadPath: function(path)
+		{
+			if (this._cache.hasOwnProperty(path))
+				return this._cache[path];
 
 			var source;
 
 			try
 			{
-				source = get(path);
+				source = this._get(path);
 			}
 			catch (e) {}
 
 			if (typeof source !== 'string')
 			{
-				cache[path] = false;
+				this._cache[path] = false;
 				return false;
 			}
 
-			var module = cache[path] = { source: source };
-			Object.defineProperty(module, 'id', { value: path, configurable: false, enumerable: true, writable: false });
+			var module = this._cache[path] = { source: source };
+			define(module, { configurable: false }, { id: path });
 
 			return module;
-		}
-
-		function loadFile(name)
+		},
+		_loadFile: function(name)
 		{
 			if (name.charAt(name.length - 1) === '/')
 				// Names that end in / are explicitly directories.
 				return false;
 
-			return loadPath(name) || loadPath(name + '.js');
-		}
-
-		function loadDirectory(name)
+			return this._loadPath(name) || this._loadPath(name + '.js');
+		},
+		_loadDirectory: function(name)
 		{
-			var pkg = loadPath(joinPath(name, manifest));
+			var pkg = this._loadPath(joinPath(name, this._manifest));
+
 			if (pkg)
 			{
 				try
@@ -126,148 +291,111 @@ void function()
 				}
 
 				if (pkg !== false && pkg.constructor === Object && typeof pkg.main === 'string')
-					return loadFile(joinPath(name, pkg.main));
+					return this._loadFile(joinPath(name, pkg.main));
 			}
 
-			return loadFile(joinPath(name, 'index.js'));
-		}
-
-		function loadTop(start, name)
+			return this._loadFile(joinPath(name, 'index.js'));
+		},
+		_loadTop: function(start, name)
 		{
 			var parts = joinPath('/', start.replace(/\/+$/, '')).split('/'),
-				min = (parts.indexOf(directory) + 1) || 1,
+				min = (parts.indexOf(this._directory) + 1) || 1,
 				i = parts.length,
 				path, module;
 
 			while (parts.length > min)
 			{
 				path = parts.join('/');
-				if (parts[parts.length - 1] === directory)
+				if (parts[parts.length - 1] === this._directory)
 					path = joinPath(parts.join('/'), name);
 				else
-					path = joinPath(parts.join('/'), directory, name);
+					path = joinPath(parts.join('/'), this._directory, name);
 
-				if (module = (loadFile(path) || loadDirectory(path)))
+				if (module = (this._loadFile(path) || this._loadDirectory(path)))
 					return module;
 
 				parts.pop();
 			}
 
 			return false;
-		}
-
-		function joinPath()
+		},
+		_validatePathPart: function(part)
 		{
-			var parts = Array.prototype.join.call(arguments, '/').split('/'),
-				path = [],
-				i = parts.length;
-
-			while (--i >= 0)
-			{
-				switch (parts[i])
-				{
-					case '.':
-						break;
-					case '..':
-						i--;
-						break;
-					default:
-						path.push(parts[i]);
-						break;
-				}
-			}
-
-			return path.reverse().join('/').replace(/\/{2,}/g, '/');
-		}
-
-		function Name(value, isCore)
-		{
-			if (typeof value !== 'string')
-				throw new Error("non-string");
-			if (!value)
+			if (typeof part !== 'string')
 				throw new Error("empty");
-			if (/[^a-z0-9_~\/\.\-]/i.test(value))
+			if (/[^a-z0-9_~\.\-]/i.test(part))
 				throw new Error("invalid characters");
-
-			var type;
-			if (name.charAt(0) === '/')
-				type = 'absolute';
-			else if (/^\.{1,2}\//.test(value))
-				type = 'relative';
-			else
-			{
-				if (/(^|\/)\./.test(value))
-					throw new Error("invalid leading dot");
-				if (value.charAt(value.length - 1) === '/')
-					throw new Error("invalid trailing forward slash");
-
-				type = 'top';
-			}
-
-			Object.defineProperty(this, 'value', { value: value, configurable: false, enumerable: true, writable: false });
-			Object.defineProperty(this, 'type', { value: type, configurable: false, enumerable: true, writable: false });
-			Object.defineProperty(this, 'isCore', { value: !!isCore, configurable: false, enumerable: true, writable: false });
+			if (/^\.{1,2}$/.test(part))
+				throw new Error("dot/double-dot not allowed");
 		}
-
-		function resolve(start, name)
+	});
+	define(Resolver.prototype, { writable: false, configurable: false }, {
+		Name: (function()
 		{
-			if (!(name instanceof Name))
-				name = new Name(name);
-
-			if (name.type === 'top')
+			function Name(value, ignoreCore)
 			{
-				if (!name.isCore && core.hasOwnProperty(name))
-					return resolve(start, core[name.value]);
+				if (typeof value !== 'string')
+					throw new Error("non-string");
+				if (!value)
+					throw new Error("empty");
+				if (/[^a-z0-9_~\/\.\-]/i.test(value))
+					throw new Error("invalid characters");
+
+				var type;
+				if (name.charAt(0) === '/')
+					type = 'absolute';
+				else if (/^\.{1,2}\//.test(value))
+					type = 'relative';
 				else
-					return loadTop(start, name.value);
+				{
+					if (/(^|\/)\./.test(value))
+						throw new Error("invalid leading dot");
+					if (value.charAt(value.length - 1) === '/')
+						throw new Error("invalid trailing forward slash");
+
+					type = 'top';
+				}
+
+				define(this, { enumerable: true }, {
+					value: value,
+					type: type,
+					ignoreCore: !!ignoreCore
+				});
 			}
-			else // relative or absolute
+			define(Name.prototype, {
+				toString: function()
+				{
+					return this.value;
+				}
+			});
+
+			return Name;
+		}()),
+		get: define({}, { writable: false, configurable: false }, {
+			node: function(fs, path)
 			{
-				var path = name.type === 'relative' ? joinPath('/', start, name.value) : name.value;
-				return loadFile(path) || loadDirectory(path);
+				return fs.readFileSync(path, { encoding: 'utf8' });
+			},
+			browser: function(xhr, path)
+			{
+				var req = new xhr();
+				req.open('get', path, false);
+				//req.setRequestHeader('pragma', 'no-cache');
+				req.send();
+
+				if (req.responseText == null)
+					return false;
+
+				return req.responseText;
 			}
-		}
-
-		resolve.defineCore = function(coreName, name)
-		{
-			coreName = new Name(coreName, true);
-			if (coreName.type !== 'top')
-				throw new Error("non-top core name");
-			if (core.hasOwnProperty(coreName.value))
-				throw new Error("core redefinition");
-
-			core[coreName.value] = (name != null ? new Name(name, true) : coreName);
-		};
-
-		return resolve;
-	}
-
-	// Default NodeJS File System module backed get function.
-	function nodeGet(fs, path)
-	{
-		return fs.readFileSync(path, { encoding: 'utf8' });
-	}
-
-	// Default XMLHttpRequest backed get function.
-	function browserGet(xhr, noCache, path)
-	{
-		var req = new xhr();
-		req.open('get', path, false);
-		if (noCache)
-			req.setRequestHeader('pragma', 'no-cache');
-		req.send();
-
-		if (req.responseText == null)
-			return false;
-
-		return req.responseText;
-	}
+		})
+	});
 
 	if (typeof module !== 'undefined' && module.exports)
 	{
-		// Required as module. Export the universal resolver factory.
+		// Required as module. Export the Resolver class.
 
-		module.exports = need;
+		module.exports = Resolver;
 	}
 	else void function()
 	{
@@ -277,27 +405,37 @@ void function()
 		if (!(options instanceof Object))
 			options = {};
 
-		var resolve = need(options);
-
+		var main = options.main;
 		var mainModule = void 0;
+		var start = window.location.pathname.replace(/[^\/]+$/, '');
+		var resolver = new Resolver({
+			directory: options.directory,
+			manifest: options.manifest,
+			get: options.get,
+			core: options.core,
+			corePath: options.corePath != null ? joinPath(start, options.corePath) : null,
+			log: options.log
+		});
 
-		// TODO: Use main property of options if available.
-		var main = (function()
+		if (typeof main !== 'string')
 		{
-			var script = Array.prototype.slice.call(document.getElementsByTagName('script')).pop();
-			if (!script || !(/(?:^|\/)need.js$/.test(script.src)))
-				throw new Error("script tag not found");
+			main = (function()
+			{
+				var script = Array.prototype.slice.call(document.getElementsByTagName('script')).pop();
+				if (!script)
+					throw new Error("script tag not found");
 
-			var main = script.getAttribute('data-main');
-			if (!main)
-				throw new Error("missing data-main attribute");
+				var value = script.getAttribute('data-main');
+				if (!value)
+					throw new Error("missing data-main attribute");
 
-			return main;
-		}());
+				return value;
+			}());
+		}
 
 		function require(start, name)
 		{
-			var module = resolve(start, name);
+			var module = resolver.resolve(start, name);
 			if (!module)
 				throw new Error('failed resolving "' + name + '"');
 
@@ -305,62 +443,38 @@ void function()
 			{
 				// The module has not been initialized yet.
 
-				if (!mainModule)
-					mainModule = module;
-
-				var moduleStart = module.id.replace(/[^\/]+$/, '');
-				var moduleRequire = function(name)
-				{
-					return require(moduleStart, name);
-				};
-
-				Object.defineProperty(moduleRequire, 'main', { value: mainModule, configurable: false, enumerable: true, writable: false });
-				Object.defineProperty(module, 'require', { value: moduleRequire, configurable: false, enumerable: true, writable: false });
-				Object.defineProperty(module, 'exports', { value: {}, configurable: false, enumerable: true, writable: true });
-
 				var source = module.source;
+				var moduleStart = module.id.replace(/[^\/]+$/, '');
+
+				if (!mainModule)
+				{
+					mainModule = module;
+					if (options.corePath == null)
+						resolver.setCorePath(moduleStart);
+				}
+
 				delete module.source;
 
-				// TODO: Define __filename and __dirname.
+				define(module, { writable: false, configurable: false }, {
+					require: define(function(name)
+					{
+						return require(moduleStart, name);
+					},
+					{ configurable: false }, {
+						main: mainModule
+					})
+				});
+
+				define(module, { configurable: false }, {
+					exports: {}
+				});
+
 				/* jshint evil: true */
-				new Function('module', 'exports', 'require', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, window);
-			}
-		}
-
-		// Define core modules.
-		// TODO: Handle options.core in resolver instead of here.
-		if (options.core instanceof Array)
-		{
-			var i = 0,
-				max = options.core.length,
-				coreDef;
-
-			for (; i < max; ++i)
-			{
-				coreDef = options.core[i];
-
-				if (typeof coreDef === 'string')
-				{
-					resolve.defineCore(coreDef);
-				}
-				else if (coreDef instanceof Object)
-				{
-					if (typeof coreDef.name !== 'string')
-						throw new Error("missing core name");
-
-					if (coreDef.require == null)
-						resolve.defineCore(coreDef.name);
-					else
-						resolve.defineCore(coreDef.name, coreDef.require);
-				}
-				else
-				{
-					throw new Error("invalid core module");
-				}
+				new Function('module', 'exports', 'require', '__filename', '__dirname', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleStart, window);
 			}
 		}
 
 		// Require the main module.
-		require(window.location.pathname.replace(/[^\/]+$/, ''), main);
+		require(start, main);
 	}();
 }();

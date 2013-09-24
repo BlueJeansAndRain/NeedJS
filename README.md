@@ -59,6 +59,7 @@ including "need.js".
             "coreModA",
             { name: "coreModB", require: "./core/coreModB" }
         ],
+        corePath: "/",
         main: "main"
     };
     </script>
@@ -88,7 +89,7 @@ If you _don't_ plan on compiling your web application for production, you may wa
 
 #### log
 
-An optional callback function to recieve log messages. Defaults to noop. The callback will be passed a single string value, so it is compatible with `console.log` and `console.error`.
+A callback function to recieve log messages. Defaults to noop. The callback will be passed a single string value, so it is compatible with `console.log` and `console.error`.
 
 #### core
 
@@ -99,6 +100,10 @@ A string value represents a top-level module name. It will be used both to requi
 Object values must have a `name` property by which the core module can be required. An optional `require` property can be given which will be used to initially require the core module. If the `require` property is not present, then the `name` property will be used which makes it equivalent to using a string value.
 
 In any core module or module required by a core module, the `require.main` property will be undefined because the main module has not been required yet.
+
+#### corePath
+
+The directory in which to resolve core module names. Defaults to the directory which contains the main module.
 
 #### main
 
