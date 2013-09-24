@@ -120,8 +120,16 @@ void function()
 			var pkg = loadPath(joinPath(name, manifest));
 			if (pkg)
 			{
-				pkg = JSON.parse(pkg.source);
-				if (pkg.constructor === Object && typeof pkg.main === 'string')
+				try
+				{
+					pkg = JSON.parse(pkg.source);
+				}
+				catch(e)
+				{
+					pkg = false;
+				}
+
+				if (pkg !== false && pkg.constructor === Object && typeof pkg.main === 'string')
 					return loadFile(joinPath(name, pkg.main));
 			}
 
