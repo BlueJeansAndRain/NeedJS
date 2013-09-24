@@ -77,11 +77,6 @@ void function()
 		var cache = {};
 		var core = {};
 
-		function loadCore(name)
-		{
-			return core.hasOwnProperty(name) ? core[name] : false;
-		}
-
 		function loadPath(path)
 		{
 			if (cache.hasOwnProperty(path))
@@ -92,11 +87,12 @@ void function()
 			try
 			{
 				source = get(path);
-				if (typeof source !== 'string')
-					return false;
 			}
-			catch (e)
+			catch (e) {}
+
+			if (typeof source !== 'string')
 			{
+				cache[path] = false;
 				return false;
 			}
 
@@ -184,53 +180,63 @@ void function()
 			return path.reverse().join('/').replace(/\/{2,}/g, '/');
 		}
 
-		function validateName(name)
+		function Name(value, isCore)
 		{
-			if (typeof name !== 'string')
+			if (typeof value !== 'string')
 				throw new Error("non-string");
-			if (!name)
+			if (!value)
 				throw new Error("empty");
-			if (/[^a-z0-9_~\/\.\-]/i.test(name))
+			if (/[^a-z0-9_~\/\.\-]/i.test(value))
 				throw new Error("invalid characters");
-			if (name.charAt(0) === '/')
-				throw new Error("leading forward slash");
-		}
 
-		function validateTopName(name)
-		{
-			if (/(^|\/)\./.test(name))
-				throw new Error("invalid leading dot");
-			if (name.charAt(name.length - 1) === '/')
-				throw new Error("trailing forward slash");
+			var type;
+			if (name.charAt(0) === '/')
+				type = 'absolute';
+			else if (/^\.{1,2}\//.test(value))
+				type = 'relative';
+			else
+			{
+				if (/(^|\/)\./.test(value))
+					throw new Error("invalid leading dot");
+				if (value.charAt(value.length - 1) === '/')
+					throw new Error("invalid trailing forward slash");
+
+				type = 'top';
+			}
+
+			Object.defineProperty(this, 'value', { value: value, configurable: false, enumerable: true, writable: false });
+			Object.defineProperty(this, 'type', { value: type, configurable: false, enumerable: true, writable: false });
+			Object.defineProperty(this, 'isCore', { value: !!isCore, configurable: false, enumerable: true, writable: false });
 		}
 
 		function resolve(start, name)
 		{
-			validateName(name);
+			if (!(name instanceof Name))
+				name = new Name(name);
 
-			if (!(/^\.{1,2}\//).test(name))
+			if (name.type === 'top')
 			{
-				// Top-level
-				validateTopName(name);
-				return loadCore(name) || loadTop(start, name);
+				if (!name.isCore && core.hasOwnProperty(name))
+					return resolve(start, core[name.value]);
+				else
+					return loadTop(start, name.value);
 			}
-			else
+			else // relative or absolute
 			{
-				// Relative
-				var path = joinPath('/', start, name);
+				var path = name.type === 'relative' ? joinPath('/', start, name.value) : name.value;
 				return loadFile(path) || loadDirectory(path);
 			}
 		}
 
-		resolve.setCore = function(name, module)
+		resolve.defineCore = function(coreName, name)
 		{
-			validateName(name);
-			validateTopName(name);
-
-			if (core.hasOwnProperty(name))
+			coreName = new Name(coreName, true);
+			if (coreName.type !== 'top')
+				throw new Error("non-top core name");
+			if (core.hasOwnProperty(coreName.value))
 				throw new Error("core redefinition");
 
-			core[name] = module;
+			core[coreName.value] = (name != null ? new Name(name, true) : coreName);
 		};
 
 		return resolve;
@@ -275,6 +281,7 @@ void function()
 
 		var mainModule = void 0;
 
+		// TODO: Use main property of options if available.
 		var main = (function()
 		{
 			var script = Array.prototype.slice.call(document.getElementsByTagName('script')).pop();
@@ -288,26 +295,23 @@ void function()
 			return main;
 		}());
 
-		function require(options, start, name)
+		function require(start, name)
 		{
 			var module = resolve(start, name);
 			if (!module)
 				throw new Error('failed resolving "' + name + '"');
 
-			if (options.core)
-				resolve.setCore(options.core, module);
-
 			if (module.hasOwnProperty('source'))
 			{
 				// The module has not been initialized yet.
 
-				if (options.main)
+				if (!mainModule)
 					mainModule = module;
 
 				var moduleStart = module.id.replace(/[^\/]+$/, '');
 				var moduleRequire = function(name)
 				{
-					return require({}, moduleStart, name);
+					return require(moduleStart, name);
 				};
 
 				Object.defineProperty(moduleRequire, 'main', { value: mainModule, configurable: false, enumerable: true, writable: false });
@@ -317,26 +321,46 @@ void function()
 				var source = module.source;
 				delete module.source;
 
+				// TODO: Define __filename and __dirname.
 				/* jshint evil: true */
 				new Function('module', 'exports', 'require', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, window);
 			}
 		}
 
-		var start = window.location.pathname.replace(/[^\/]+$/, '');
-
-		// Require core modules.
-		if (options.core instanceof Object)
+		// Define core modules.
+		// TODO: Handle options.core in resolver instead of here.
+		if (options.core instanceof Array)
 		{
-			for (var name in options.core)
+			var i = 0,
+				max = options.core.length,
+				coreDef;
+
+			for (; i < max; ++i)
 			{
-				if (typeof options.core[name] === 'string')
-					require({ core: name }, start, options.core[name]);
-				else if (options.core[name] === true)
-					require({ core: name }, start, name);
+				coreDef = options.core[i];
+
+				if (typeof coreDef === 'string')
+				{
+					resolve.defineCore(coreDef);
+				}
+				else if (coreDef instanceof Object)
+				{
+					if (typeof coreDef.name !== 'string')
+						throw new Error("missing core name");
+
+					if (coreDef.require == null)
+						resolve.defineCore(coreDef.name);
+					else
+						resolve.defineCore(coreDef.name, coreDef.require);
+				}
+				else
+				{
+					throw new Error("invalid core module");
+				}
 			}
 		}
 
 		// Require the main module.
-		require({ main: true }, start, main);
+		require(window.location.pathname.replace(/[^\/]+$/, ''), main);
 	}();
 }();
