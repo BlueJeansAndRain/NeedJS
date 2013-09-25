@@ -332,6 +332,8 @@ void function()
 	}
 	else void function()
 	{
+		// TODO: Move this out to the NeedJS API so that it can be reused.
+
 		// Used in the browser. Initialize browser modules support.
 
 		var options = window.needjs;
