@@ -1,11 +1,11 @@
 Need.js
 =======
 
-CommonJS module system for the browser, Node.js, or other JavaScript environment.
+CommonJS modules for the browser, Node.js, or other JavaScript environment.
 
-This implementation is designed to be a subset of the Node.js module implementation so that targetting Need.js will always result in Node and Node compilers being supported, but _not_ vise versa. Therefore, if you want to write code for browser AND Node.js use, target Need.js features to ensure a common feature set.
+This is meant to be a universal module system. You "should" be able to use it any JavaScript environment, either to add modules if they're not supported, or even to replace an existing module system. The `module.exports` object will be used if it's defined, or a `NeedJS` global variable will be created on `window` or `global`.
 
-_Note: Node.js core modules are provided in [needjs-node-core](https://github.com/BlueJeansAndRain/needjs-nodecore)_
+This implementation is designed to be a subset of the Node.js module implementation so that targetting Need.js will always result in Node.js and Node.js compilers being supported, but _not_ necessarily vise versa. Therefore, if you want to write code for browser AND Node.js use, target Need.js features to ensure a common feature set.
 
 Features
 --------
