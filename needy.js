@@ -1,8 +1,13 @@
 void function()
 {
 	"use strict";
+	/* jshint evil: true */
+	/* globals module, define */
 
-	var _exports = (function()
+	// An environment agnostic reference to the global namespace.
+	var global = Function('return this;')();
+
+	var Needy = (function()
 	{
 		// A thin shim that sets a property on an object, in case Object.defineProperty is
 		// undefined.
@@ -39,6 +44,7 @@ void function()
 		{
 			try
 			{
+				/* jshint validthis: true */
 				return fn.apply(this, Array.prototype.slice.call(arguments, 1));
 			}
 			catch (e) {}
@@ -94,7 +100,21 @@ void function()
 				}
 			}
 
-			return path.reverse().join('/');
+			return parts.reverse().join('/');
+		}
+
+		// Make sure a path is a string, isn't empty, contains valid characters, and optionally
+		// isn't a dot path.
+		function validPath(path, allowDots)
+		{
+			if (typeof path !== 'string')
+				throw new Error("non-string");
+			if (!path)
+				throw new Error("empty");
+			if (/[^a-z0-9_~\/\.\-]/i.test(path))
+				throw new Error("invalid characters");
+			if (!allowDots && /^\.{1,2}$/.test(path))
+				throw new Error("dot/double-dot not allowed");
 		}
 
 		function defaultGetNode(fs, path)
@@ -118,25 +138,11 @@ void function()
 			return req.responseText;
 		}
 
-		// Make sure a path is a string, isn't empty, contains valid characters, and optionally
-		// isn't a dot path.
-		function validPath(path, allowDots)
-		{
-			if (!(options instanceof Object))
-				options = {};
-
-			if (typeof path !== 'string')
-				throw new Error("non-string");
-			if (!path)
-				throw new Error("empty");
-			if (/[^a-z0-9_~\/\.\-]/i.test(path))
-				throw new Error("invalid characters");
-			if (!allowDots && /^\.{1,2}$/.test(path))
-				throw new Error("dot/double-dot not allowed");
-		}
-
 		function Name(value)
 		{
+			if (!(this instanceof Name))
+				return new Name(value);
+
 			if (validPath(value, true))
 				throw new Error("invalid module name");
 
@@ -162,6 +168,9 @@ void function()
 
 		function Module(id, extra)
 		{
+			if (!(this instanceof Module))
+				return new Module(id, extra);
+
 			if (id instanceof Name)
 				id = id.value;
 
@@ -181,6 +190,9 @@ void function()
 		// See: http://nodejs.org/api/modules.html#modules_all_together
 		function Resolver(options)
 		{
+			if (!(this instanceof Resolver))
+				return new Resolver(options);
+
 			if (!(options instanceof Object))
 				options = {};
 
@@ -275,13 +287,10 @@ void function()
 					// If requiring "fs" fails, then attempt to use the default get function for
 					// the browser which uses XMLHttpRequest or IE's ActiveX equivalent.
 
-					if (typeof window !== 'undefined')
-					{
-						if (typeof window.XMLHttpRequest !== 'undefined')
-							this._get = partial(Resolver.defaultGetBrowser, window.XMLHttpRequest);
-						else if (typeof window.ActiveXObject)
-							this._get = partial(Resolver.defaultGetBrowser, window.ActiveXObject('MSXML2.XMLHTTP.3.0'));
-					}
+					if (global.XMLHttpRequest)
+						this._get = partial(Resolver.defaultGetBrowser, global.XMLHttpRequest);
+					else if (global.ActiveXObject)
+						this._get = partial(Resolver.defaultGetBrowser, global.ActiveXObject('MSXML2.XMLHTTP.3.0'));
 				}
 
 				if (!this._get)
@@ -401,19 +410,13 @@ void function()
 			}
 		});
 
-		function Need(options)
+		function Needy(options)
 		{
+			if (!(this instanceof Needy))
+				return new Needy(options);
+
 			if (!(options instanceof Object))
 				options = {};
-
-			if (options.global != null)
-				this._global = options.global;
-			else if (typeof global !== 'undefined')
-				this._global = global;
-			else if (typeof window !== 'undefined')
-				this._global = window;
-			else
-				this._global = {};
 
 			if (options.jsonParse instanceof Function)
 				this._jsonParse = options.jsonParse;
@@ -430,12 +433,14 @@ void function()
 			else if (typeof require !== 'undefined' && require instanceof Function)
 				this._binaryInit = require;
 
-			if (options.dirname != null)
+			// TODO: Move the startPath option to the Resolver class for use when resolving core
+			// modules and modules with no dirname.
+			if (options.startPath != null)
 				this._dirname = options.startPath;
 			else if (typeof __dirname !== 'undefined')
 				this._dirname = __dirname;
-			else if (typeof window !== 'undefined' && window.location && typeof window.location.pathname === 'string')
-				this._dirname = window.location.pathname.replace(/[^\/]+$/, '');
+			else if (global.location && typeof global.location.pathname === 'string')
+				this._dirname = global.location.pathname.replace(/[^\/]+$/, '');
 
 			if (options.resolve instanceof Function)
 				this._resolve = options.resolve;
@@ -452,18 +457,17 @@ void function()
 				this._resolve = portable(resolver, 'resolve');
 			}
 		}
-		define(Need.prototype, { configurable: false }, {
+		define(Needy.prototype, { configurable: false }, {
 			init: function(name)
 			{
 				if (this._main)
 					throw new Error("already initialized");
 
-				this._require(this._dirname, name);
+				this._require(null, name);
 
 				return this._main.exports;
 			},
 			_main: void 0,
-			_global: void 0,
 			_jsonParse: false,
 			_fallback: false,
 			_binaryInit: false,
@@ -471,8 +475,8 @@ void function()
 			_resolve: void 0,
 			_require: function(dirname, name)
 			{
-				if (name === 'need')
-					return Need;
+				if (name === 'needy')
+					return Needy;
 
 				var module = this._resolve(dirname, name);
 
@@ -509,7 +513,7 @@ void function()
 						define(module.require, { configurable: false }, { main: this._main });
 
 						/* jshint evil: true */
-						Function('module', 'exports', 'require', '__filename', '__dirname', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, this._global);
+						Function('module', 'exports', 'require', '__filename', '__dirname', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, global);
 					}
 				}
 				else if (module.source === false)
@@ -527,7 +531,7 @@ void function()
 			}
 		});
 
-		return define(Need, null, {
+		return define(Needy, null, {
 			Resolver: Resolver,
 			Name: Name,
 			utils: define({}, null, {
@@ -543,41 +547,49 @@ void function()
 		});
 	}());
 
-	if (typeof module !== 'undefined' && module.exports)
+	if (typeof module !== 'undefined' && module && module.exports)
 	{
-		// Required as module.
+		// Required as a CommonJS module.
 
-		module.exports = _exports;
+		module.exports = Needy;
 	}
-	else if (typeof window !== 'undefined') void function()
+	else if (typeof define === 'function')
 	{
-		// Used in the browser.
+		// Required as a RequireJS module.
 
-		var options = window.needjs;
-		if (!(options instanceof Object))
-			options = {};
-
-		var main;
-		if (typeof options.main === 'string')
-			main = options.main;
-		else
-			main = (function()
-			{
-				var script = Array.prototype.slice.call(window.document.getElementsByTagName('script')).pop();
-				if (!script)
-					throw new Error("script tag not found");
-
-				var valueN = script.getAttribute('data-main');
-				if (!value)
-					throw new Error("missing data-main attribute");
-
-				return value;
-			}());
-
-		new Need(options).init(main);
-	}();
+		define(function()
+		{
+			return Needy;
+		});
+	}
 	else
 	{
-		throw new Error("expected module.exports or window");
+		// Fall back to adding Needy to the global namespace.
+
+		if (global.Needy == null)
+			global.Needy = Needy;
+
+		var options = global.needy || {};
+		var main = false;
+
+		if (global.document)
+		{
+			// Running in a browser or something browser-like with a global document variable.
+
+			// Attempt to get the script tag that included Needy. It should be the last script on
+			// the page with a "data-needy" attribute.
+			var script, scripts = global.document.getElementsByTagName('script');
+			while (main === false && (script = scripts.pop()))
+				main = script.hasAttribute('data-needy') && script.getAttribute('data-needy');
+		}
+
+		// If there was no needy script tag, then check the options object for a string main
+		// property.
+		if (main === false && options.main === 'string')
+			main = options.main;
+
+		// If a main module name is present, then automatically require it.
+		if (main !== false)
+			new Needy(options).init(main);
 	}
 }();

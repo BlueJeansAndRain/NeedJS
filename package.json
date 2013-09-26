@@ -1,14 +1,14 @@
 {
-  "name": "needjs",
-  "version": "0.1.0",
-  "description": "CommonJS modules implementation for the browser and module resolver for NodeJS.",
-  "main": "index.js",
+  "name": "needy",
+  "version": "0.0.1",
+  "description": "CommonJS modules for the browser, Node.js, or any other JavaScript environment.",
+  "main": "needy.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/BlueJeansAndRain/needjs.git"
+    "url": "git://github.com/BlueJeansAndRain/needy.git"
   },
   "keywords": [
     "commonjs",
@@ -18,6 +18,6 @@
   "author": "Chris Ackerman <bluejeansandrain@gmail.com> (http://parallelnoodles.com)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/BlueJeansAndRain/needjs/issues"
+    "url": "https://github.com/BlueJeansAndRain/needy/issues"
   }
 }
