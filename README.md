@@ -140,7 +140,8 @@ Module resolution, logging, and core environment can be customized via an option
 
         //
         // Options below this point are for the Needy.Resolver instance that
-        // is created when the resolve option is not set. They have no effect // it is set.
+        // is created when the resolve option is not set. They have no effect
+        // it is set.
         //
 
         // The path prefix to use when requiring relative or top-level main
@@ -163,8 +164,8 @@ Module resolution, logging, and core environment can be customized via an option
         // default method based on Node's file system module or XMLHttpRequest
         // class, depending on what's available in the environment.
         get: function(uri) {
-            // Return a string on on success. On failure, return a non-string value or throw an
-            // exception.
+            // Return a string on on success. On failure, return a non-string
+            // value or throw an exception.
         },
 
         // Core module names mapped to their "real" require name. Top-level
