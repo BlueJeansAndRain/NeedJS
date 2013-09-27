@@ -1,17 +1,46 @@
 "use strict";
 
-window.log();
-window.log('Main module loaded');
-window.log('Hello World!');
+function block()
+{
+	if (arguments.length === 0)
+		return;
 
-window.log();
-window.log('Requiring non-existent relative module names...');
-window.log();
-try
+	window.log();
+
+	var i = 0, max = arguments.length;
+	for (; i < max; ++i)
+		window.log(arguments[i]);
+
+	window.log();
+}
+
+function test(callback)
+{
+	try
+	{
+		callback();
+	}
+	catch (e)
+	{
+		window.log(e.message, 'red');
+	}
+}
+
+block(
+	'Main module loaded: ' + module.id,
+	'Hello World!'
+);
+
+block('Requiring "needy" core module...');
+
+test(function()
+{
+	require('needy');
+});
+
+block('Requiring non-existent relative module names...');
+
+test(function()
 {
 	require('./foo/bar');
-}
-catch (e)
-{
-	window.log(e.message, 'red');
-}
+});

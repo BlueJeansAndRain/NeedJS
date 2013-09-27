@@ -215,10 +215,10 @@ void function()
 			}
 		});
 
-		function Module(id, source, extra)
+		function Module(id, source)
 		{
 			if (!(this instanceof Module))
-				return new Module(id, source, extra);
+				return new Module(id, source);
 
 			if (id instanceof Name)
 				id = id.value;
@@ -226,26 +226,10 @@ void function()
 			define(this, { configurable: false, writable: false }, { id: id });
 			define(this, { configurable: false }, { exports: {} });
 
-			if (typeof source === 'string')
-			{
+			if (typeof source === 'string' || source instanceof Function)
 				this.source = source;
-			}
 			else
-			{
 				this.source = false;
-
-				if (source instanceof Object)
-					extra = source;
-			}
-
-			if (extra instanceof Object)
-			{
-				for (var prop in extra)
-				{
-					if (extra.hasOwnProperty(prop))
-						this[prop] = extra[prop];
-				}
-			}
 		}
 
 		// See: http://nodejs.org/api/modules.html#modules_all_together
@@ -285,9 +269,43 @@ void function()
 
 				return this._resolve(dirname, name);
 			},
+			addCore: function(name, path)
+			{
+				if (name instanceof Object && !(name instanceof Name))
+				{
+					var core = name;
+					for (name in core)
+						this.addCore(name, core[name]);
+
+					return this;
+				}
+
+				this._addCore(name, path);
+
+				return this;
+			},
+			cache: function(name, module)
+			{
+				if (!(name instanceof Name))
+					name = new Name(name);
+
+				if (!(module instanceof Module))
+					throw new Error("only module instances can be cached");
+				if (this._cache[name.value])
+					throw new Error("cache name collision");
+
+				this._cache[name.value] = module;
+
+				return this;
+			},
 			uncache: function(name)
 			{
+				if (name instanceof Name)
+					name = name.value;
+
 				delete this._cache[name];
+
+				return this;
 			},
 			_cache: void 0,
 			_root: '/',
@@ -306,7 +324,11 @@ void function()
 
 				var module;
 
-				if (name.topLevel)
+				if (this._cache[name.value])
+				{
+					module = this._cache[name.value];
+				}
+				else if (name.topLevel)
 				{
 					module = this._loadTop(dirname, name.value);
 				}
@@ -321,6 +343,9 @@ void function()
 				// unresolved module's source property will be false.
 				if (!module)
 				{
+					if (name instanceof Name)
+						name = name.value;
+
 					if (this._cache[name])
 						module = this._cache[name];
 					else
@@ -413,23 +438,7 @@ void function()
 				if (!(core instanceof Object))
 					return;
 
-				var name, path;
-				for (name in core)
-				{
-					path = core[name];
-					if (!isValidPath(path))
-						throw new Error("invalid core path");
-
-					name = new Name(name);
-					if (!name.topLevel)
-						throw new Error("core name not top-level");
-					if (this._core.hasOwnProperty(name.value))
-						throw new Error("core name redefinition");
-
-					this._core[name.value] = joinPath(this._root, path);
-
-					this._log('Core module added: "' + name.value + '" -> "' + this._core[name.value] + '"');
-				}
+				this.addCore(core);
 			},
 			_initJsonParse: function(jsonParse)
 			{
@@ -442,6 +451,25 @@ void function()
 			{
 				if (log instanceof Function)
 					this._log = log;
+			},
+			_addCore: function(name, core)
+			{
+				if (!(core instanceof Function) && !isValidPath(core))
+					throw new Error("invalid core value");
+				if (typeof core === 'string')
+					core = joinPath(this._root, core);
+
+				if (!(name instanceof Name))
+					name = new Name(name);
+
+				if (!name.topLevel)
+					throw new Error("core name not top-level");
+				if (this._core.hasOwnProperty(name.value))
+					throw new Error("core name redefinition");
+
+				this._core[name.value] = core;
+
+				this._log('Core module added: "' + name.value + '" -> ' + (typeof core === 'string' ? '"' + core  + '"' : 'Function()'));
 			},
 			_load: function(path)
 			{
@@ -528,7 +556,11 @@ void function()
 				if (this._core.hasOwnProperty(name))
 				{
 					this._log('Core map contains "' + name + '"');
-					return this._loadNonTop(this._core[name]);
+
+					if (this._core[name] instanceof Function)
+						return new Module(name, this._core[name]);
+					else
+						return this._loadNonTop(this._core[name]);
 				}
 
 				var parts = (dirname === '/') ? [''] : dirname.split(/[\/\\]/);
@@ -581,16 +613,12 @@ void function()
 
 				return this._main.exports;
 			},
-			_main: void 0,
-			_resolver: void 0,
+			_main: false,
 			_jsonParse: false,
 			_fallback: false,
 			_binaryInit: false,
 			_require: function(dirname, name)
 			{
-				if (name === 'needy')
-					return Needy;
-
 				var module = this._resolver.resolve(name, dirname);
 
 				if (module.source != null)
@@ -613,7 +641,7 @@ void function()
 				{
 					if (typeof source === 'string')
 					{
-						// The module was resolved.
+						// Resolved to source code.
 
 						if (/\.json$/.test(module.id))
 						{
@@ -638,6 +666,14 @@ void function()
 							Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, this, global);
 						}
 					}
+					else if (source instanceof Function)
+					{
+						// Resolved to initializer function.
+
+						var returnedExports = source(module, module.exports, module.require, module.id, moduleDirname, this, global);
+						if (typeof returnedExports !== 'undefined')
+							module.exports = returnedExports;
+					}
 					else
 					{
 						// The module is unresolved.
@@ -660,20 +696,27 @@ void function()
 			},
 			_initResolver: function(options)
 			{
+				var resolver;
+
 				if (options.resolver instanceof Resolver)
-				{
-					this._resolver = options.resolver;
-				}
+					resolver = options.resolver;
 				else
-				{
-					this._resolver = new Resolver({
+					resolver = new Resolver({
 						directory: options.directory,
 						manifest: options.manifest,
 						get: options.get,
 						core: options.core,
 						log: options.log
 					});
-				}
+
+				define(this, { configurable: false, writable: false }, { _resolver: resolver });
+
+				// Attempt to add Needy to the resolver as a core module. Silently fail if the
+				// "needy" core name is already registered.
+				dethrow(portable(resolver, 'addCore'), 'needy', function(module)
+				{
+					module.exports = Needy;
+				});
 			},
 			_initJsonParse: function(jsonParse)
 			{
@@ -734,7 +777,7 @@ void function()
 	}
 	else
 	{
-		// Fall back to adding Needy to the global namespace.
+		// Fallback to creating a Needy global variable.
 
 		if (global.Needy == null)
 			global.Needy = Needy;
@@ -756,13 +799,11 @@ void function()
 				script = scripts[i];
 				main = script.hasAttribute('data-needy') && script.getAttribute('data-needy');
 			}
-			//while (main === false && (script = scripts.pop()))
-			//	main = script.hasAttribute('data-needy') && script.getAttribute('data-needy');
 		}
 
 		// If there was no needy script tag, then check the options object for a string main
 		// property.
-		if (main === false && options.main === 'string')
+		if (main === false && typeof options.main === 'string')
 			main = options.main;
 
 		// If a main module name is present, then automatically require it.

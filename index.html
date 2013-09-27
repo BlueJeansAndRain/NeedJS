@@ -1,40 +1,35 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<script>
-		window.log = function(message, color)
-		{
-			var div = document.createElement('div');
-			div.style.minHeight = "1em";
-			if (color)
-				div.style.color = color;
-			if (message != null)
-				div.appendChild(document.createTextNode(message));
-			document.getElementById("log").appendChild(div);
-		};
-		window.needy = {
-			log: function(message)
-			{
-				window.log(message, "#bbb");
-			}
-		};
-		</script>
+		<title>Needy Test Page</title>
 		<style>
-		body
-		{
-			font-family: monospace;
-			font-size: 10px;
-		}
-		#log
-		{
-			white-space: pre-wrap;
-		}
+			body { font-family: monospace; font-size: 10px; background-color: black; color: white; }
+			#title { border-bottom: 1px solid white; margin-bottom: 1em; }
+			#log { white-space: pre-wrap; }
 		</style>
 	</head>
 	<body>
-		<div>Needy Test</div>
-		<hr />
+		<div id="title">Needy</div>
 		<div id="log"></div>
 	</body>
 </html>
-<script src="needy.js" data-needy="./test/index.js"></script>
+<script>
+	window.log = function(message, color)
+	{
+		var div = document.createElement('div');
+		div.style.minHeight = "1em";
+		if (color)
+			div.style.color = color;
+		if (message != null)
+			div.appendChild(document.createTextNode(message));
+		document.getElementById("log").appendChild(div);
+	};
+	window.needy = {
+		main: "./test/index.js",
+		log: function(message)
+		{
+			window.log(message, "#bbb");
+		}
+	};
+</script>
+<script src="needy.js"></script>
