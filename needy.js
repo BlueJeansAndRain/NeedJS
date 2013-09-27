@@ -91,14 +91,14 @@ void function()
 
 			// Strip off all parts before the first part with a root prefix.
 			var i = parts.length,
-				prefix;
+				rootPrefix;
 			while (i--) if (isAbsPath(parts[i]))
 			{
 				// If the path is absolute, then save the root prefix so that it doesn't get
 				// removed by a .. part.
 				parts = parts.slice(i);
-				prefix = parts[0].match(/^([a-z]:|)[\/\\]/i)[1] + '/';
-				parts[0] = parts[0].substr(prefix.length);
+				rootPrefix = parts[0].match(/^([a-z]:|)[\/\\]/i)[1] + '/';
+				parts[0] = parts[0].substr(rootPrefix.length);
 				break;
 			}
 
@@ -122,7 +122,7 @@ void function()
 						break;
 					case '..':
 						// Only strip off leading .. parts if the path is absolute.
-						if (prefix || parts[i+1] !== '..')
+						if (rootPrefix || parts[i+1] !== '..')
 							parts.splice(i, 2);
 						break;
 				}
@@ -131,8 +131,8 @@ void function()
 			parts = parts.reverse();
 
 			// If there's a prefix, add it back in.
-			if (prefix)
-				return prefix + parts.join('/');
+			if (rootPrefix)
+				return rootPrefix + parts.join('/');
 			else
 				return parts.join('/');
 		}
@@ -248,7 +248,7 @@ void function()
 
 			this._initLog(options.log);
 			this._initRoot(options.root);
-			this._initDirectory(options.directory);
+			this._initPrefix(options.prefix);
 			this._initManifest(options.manifest);
 			this._initGet(options.get);
 			this._initCore(options.core);
@@ -312,17 +312,22 @@ void function()
 			_cache: void 0,
 			_log: function() {},
 			_root: '/',
-			_directory: 'node_modules',
+			_prefix: 'node_modules',
 			_manifest: 'package.json',
 			_get: void 0,
 			_core: void 0,
 			_jsonParse: void 0,
 			_resolve: function(dirname, name)
 			{
-				this._log('Resolving "' + name + '" in "' + dirname + '"');
-
 				if (!(name instanceof Name))
 					name = new Name(name);
+
+				if (name.topLevel && this._prefix)
+					this._log('Resolving top-level "' + name.value + '" in "' + dirname + '"');
+				else if (!isAbsPath(name.value))
+					this._log('Resolving relative "' + name.value + '" in "' + dirname + '"');
+				else
+					this._log('Resolving absolute "' + name.value + '"');
 
 				var module;
 
@@ -330,7 +335,7 @@ void function()
 				{
 					module = this._cache[name.value];
 				}
-				else if (name.topLevel)
+				else if (name.topLevel && this._prefix)
 				{
 					module = this._loadTop(dirname, name.value);
 				}
@@ -384,19 +389,19 @@ void function()
 
 				this._log('Root is "' + this._root + '"');
 			},
-			_initDirectory: function(directory)
+			_initPrefix: function(prefix)
 			{
-				if (directory != null)
+				if (prefix != null)
 				{
-					if (!directory)
-						this._directory = false;
-					else if (isValidPath(directory) && directory.indexOf('/') === -1)
-						this._directory = directory;
+					if (!prefix)
+						this._prefix = false;
+					else if (isValidPath(prefix) && prefix.indexOf('/') === -1)
+						this._prefix = prefix;
 					else
-						throw new Error("invalid directory name");
+						throw new Error("invalid prefix name");
 				}
 
-				this._log('Top-level sub-directory name is "' + this._directory + '"');
+				this._log('Prefix directory is "' + this._prefix + '"');
 			},
 			_initManifest: function(manifest)
 			{
@@ -513,10 +518,10 @@ void function()
 			},
 			_loadManifest: function(name)
 			{
-				if (!this._jsonParse)
+				if (!this._jsonParse || !this._manifest)
 					return false;
 
-				this._log('Getting manifest for "' + name + '"');
+				this._log('  Checking for manifest in "' + name + '"');
 
 				var manifest = this._load(joinPath(name, this._manifest));
 				if (!manifest)
@@ -525,7 +530,7 @@ void function()
 				manifest = dethrow(this._jsonParse, manifest);
 				if (!(manifest instanceof Object))
 				{
-					this._log('Invalid manifest for "' + name + '"');
+					this._log('  * Invalid manifest for "' + name + '"');
 					return false;
 				}
 
@@ -538,7 +543,7 @@ void function()
 
 				if (manifest && manifest.main && typeof manifest.main === 'string')
 				{
-					this._log('Manifest main for "' + name + '" is "' + manifest.main + '"');
+					this._log('  * Manifest main for "' + name + '" is "' + manifest.main + '"');
 					module = this._loadFile(joinPath(name, manifest.main)) || joinPath(name, manifest.main, 'index');
 				}
 
@@ -558,7 +563,7 @@ void function()
 			{
 				if (this._core.hasOwnProperty(name))
 				{
-					this._log('Core contains "' + name + '"');
+					this._log(' Core contains "' + name + '"');
 
 					if (this._core[name] instanceof Function)
 						return new Module(name, this._core[name]);
@@ -575,20 +580,23 @@ void function()
 				else
 					parts = [];
 
-				// If dirname contains the top-level subdirectory, then consider the top-most one
-				// the "root" of the search.
-				var min = Math.max(-1, parts.indexOf(this._directory) - 1),
+				// If dirname contains the top-level prefix, then consider the top-most one the
+				// "root" of the search.
+				var min = Math.max(-1, parts.indexOf(this._prefix) - 1),
 					i = parts.length - 1,
-					module;
+					prefix, module;
 
 				for (; i >= min; --i)
 				{
 					// Don't search in nested dependency directories.
 					// Example: .../node_modules/node_modules
-					if (i >= 0 && parts[i] === this._directory)
+					if (i >= 0 && parts[i] === this._prefix)
 						continue;
 
-					if (module = this._loadNonTop(rootPrefix + joinPath(parts.slice(0, i + 1).concat([this._directory, name]))))
+					prefix = rootPrefix + parts.slice(0, i + 1).join('/');
+					this._log(' Prefix "' + prefix + '"');
+
+					if (module = this._loadNonTop(joinPath(prefix, this._prefix, name)))
 						return module;
 				}
 
@@ -713,7 +721,7 @@ void function()
 					resolver = options.resolver;
 				else
 					resolver = new Resolver({
-						directory: options.directory,
+						prefix: options.prefix,
 						manifest: options.manifest,
 						get: options.get,
 						core: options.core,
