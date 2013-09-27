@@ -2,7 +2,10 @@
   "name": "needy",
   "version": "0.0.6",
   "description": "CommonJS modules for the browser, Node.js, or any other JavaScript environment.",
-  "main": "needy.js",
+  "main": "./needy.js",
+  "bin": {
+    "needy": "./cli.js"
+  },
   "scripts": {
     "test": "./test.js"
   },

@@ -141,7 +141,7 @@ void function()
 		// nothing but slashes.
 		function stripTrailingSlashes(path)
 		{
-			return path.replace(/(?!^)[\/\\]+/, '');
+			return path.replace(/(?!^)[\/\\]+$/, '');
 		}
 
 		// Detect a windows or linux root prefix.
@@ -226,7 +226,9 @@ void function()
 			define(this, { configurable: false, writable: false }, { id: id });
 			define(this, { configurable: false }, { exports: {} });
 
-			if (typeof source === 'string' || source instanceof Function)
+			if (typeof source === 'string')
+				this.source = source.replace(/^#!.*/, '');
+			else if (source instanceof Function)
 				this.source = source;
 			else
 				this.source = false;
@@ -485,8 +487,7 @@ void function()
 					return this._cache[path];
 				}
 
-				//var source = dethrow(this._get, path);
-				var source = this._get(path);
+				var source = dethrow(this._get, path);
 				if (typeof source !== 'string')
 				{
 					this._cache[path] = false;
@@ -555,7 +556,7 @@ void function()
 			{
 				if (this._core.hasOwnProperty(name))
 				{
-					this._log('Core map contains "' + name + '"');
+					this._log('Core contains "' + name + '"');
 
 					if (this._core[name] instanceof Function)
 						return new Module(name, this._core[name]);
@@ -602,6 +603,9 @@ void function()
 			this._initJsonParse(options.jsonParse);
 			this._initFallback(options.fallback);
 			this._initBinaryInit(options.fallback);
+
+			if (typeof __needy !== 'undefined' && __needy instanceof Needy)
+				define(this, { configurable: false, writable: false }, { parent: __needy });
 		}
 		define(Needy.prototype, { configurable: false }, {
 			init: function(name)
@@ -611,7 +615,7 @@ void function()
 
 				this._require(null, name);
 
-				return this._main.exports;
+				return this._main;
 			},
 			_main: false,
 			_jsonParse: false,
@@ -619,7 +623,7 @@ void function()
 			_binaryInit: false,
 			_require: function(dirname, name)
 			{
-				var module = this._resolver.resolve(name, dirname);
+				var module = this.resolver.resolve(name, dirname);
 
 				if (module.source != null)
 					this._moduleInit(module, name);
@@ -662,13 +666,15 @@ void function()
 							define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), moduleDirname) });
 							define(module.require, { configurable: false }, { main: this._main });
 
-							/* jshint evil: true */
 							Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, this, global);
 						}
 					}
 					else if (source instanceof Function)
 					{
 						// Resolved to initializer function.
+
+						define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), moduleDirname) });
+						define(module.require, { configurable: false }, { main: this._main });
 
 						var returnedExports = source(module, module.exports, module.require, module.id, moduleDirname, this, global);
 						if (typeof returnedExports !== 'undefined')
@@ -686,7 +692,7 @@ void function()
 				}
 				catch (e)
 				{
-					this._resolver.uncache(module.id);
+					this.resolver.uncache(module.id);
 
 					if (this._main === module)
 						this._main = void 0;
@@ -709,7 +715,7 @@ void function()
 						log: options.log
 					});
 
-				define(this, { configurable: false, writable: false }, { _resolver: resolver });
+				define(this, { configurable: false, writable: false }, { resolver: resolver });
 
 				// Attempt to add Needy to the resolver as a core module. Silently fail if the
 				// "needy" core name is already registered.
