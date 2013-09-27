@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script>
+		window.log = function(message, color)
+		{
+			var div = document.createElement('div');
+			div.style.minHeight = "1em";
+			if (color)
+				div.style.color = color;
+			if (message != null)
+				div.appendChild(document.createTextNode(message));
+			document.getElementById("log").appendChild(div);
+		};
+		window.needy = {
+			log: function(message)
+			{
+				window.log(message, "#bbb");
+			}
+		};
+		</script>
+		<style>
+		body
+		{
+			font-family: monospace;
+			font-size: 10px;
+		}
+		#log
+		{
+			white-space: pre-wrap;
+		}
+		</style>
+	</head>
+	<body>
+		<div>Needy Test</div>
+		<hr />
+		<div id="log"></div>
+	</body>
+</html>
+<script src="needy.js" data-needy="./test/index.js"></script>

@@ -7,7 +7,12 @@ var http = require('http');
 var path = require('path');
 
 var port = parseInt(process.env.npm_package_config_port, 10) || 8080;
-var docroot = new Static(path.join(__dirname, 'test'));
+var docroot = new Static(path.join(__dirname), {
+	cache: false,
+	headers: {
+		"Cache-Control": "no-store"
+	}
+});
 
 http.createServer(function(req, res)
 {

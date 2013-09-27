@@ -91,21 +91,18 @@ void function()
 
 			// Strip off all parts before the first part with a root prefix.
 			var i = parts.length,
-				absolute = false;
+				prefix;
 			while (i--) if (isAbsPath(parts[i]))
 			{
+				// If the path is absolute, then save the root prefix so that it doesn't get
+				// removed by a .. part.
 				parts = parts.slice(i);
-				absolute = true;
+				prefix = parts[0].match(/^([a-z]:|)[\/\\]/i)[1] + '/';
+				parts[0] = parts[0].substr(prefix.length);
 				break;
 			}
 
 			parts = parts.join('/').split(/[\/\\]+/).reverse();
-
-			// If the path is absolute, then save the root prefix so that it doesn't get removed by
-			// a .. part.
-			var prefix;
-			if (absolute)
-				prefix = parts.pop();
 
 			i = parts.length;
 
@@ -121,11 +118,11 @@ void function()
 						if (i !== 0)
 							parts.splice(i, 1);
 						else
-							parse[i] = '';
+							parts[i] = '';
 						break;
 					case '..':
 						// Only strip off leading .. parts if the path is absolute.
-						if (abs || parts[i+1] !== '..')
+						if (prefix || parts[i+1] !== '..')
 							parts.splice(i, 2);
 						break;
 				}
@@ -135,10 +132,9 @@ void function()
 
 			// If there's a prefix, add it back in.
 			if (prefix)
-				parts.unshift(prefix);
-
-			// Always end up with forward slash path separators.
-			return parts.join('/');
+				return prefix + parts.join('/');
+			else
+				return parts.join('/');
 		}
 
 		// Remove the trailing slashes, making sure to leave one leading slash if the path is
@@ -159,13 +155,15 @@ void function()
 		function isValidPath(path, allowDots)
 		{
 			if (typeof path !== 'string')
-				throw new Error("non-string");
+				return false;
 			if (!path)
-				throw new Error("empty");
+				return false;
 			if (!/^([a-z]:[\/\\])?[a-z0-9_~\/\.\-]+$/i.test(path))
-				throw new Error("invalid characters");
+				return false;
 			if (!allowDots && /^\.{1,2}$/.test(path))
-				throw new Error("dot/double-dot not allowed");
+				return false;
+
+			return true;
 		}
 
 		function defaultGetNode(fs, path)
@@ -194,10 +192,10 @@ void function()
 			if (!(this instanceof Name))
 				return new Name(value);
 
-			if (isValidPath(value, true))
+			if (!isValidPath(value, true))
 				throw new Error("invalid module name");
 
-			var topLevel = /^\.{0,2}\//.test(value);
+			var topLevel = !(/^\.{0,2}[\/\\]/).test(value);
 			if (topLevel)
 			{
 				// Top-level modules names cannot contain dot parts or trailing slashes.
@@ -260,6 +258,7 @@ void function()
 				options = {};
 
 			this._cache = {};
+			this._core = {};
 
 			this._initRoot(options.root);
 			this._initDirectory(options.directory);
@@ -275,7 +274,7 @@ void function()
 				if (dirname != null)
 				{
 					if (!isValidPath(dirname, true))
-						throw new Error("invalid resolve dirname path");
+						throw new Error("invalid resolve dirname");
 
 					dirname = joinPath(this._root, dirname);
 				}
@@ -330,7 +329,7 @@ void function()
 
 				return module;
 			},
-			_initRoot: function(dirname)
+			_initRoot: function(root)
 			{
 				if (typeof __dirname === 'string')
 					this._root = __dirname;
@@ -342,8 +341,8 @@ void function()
 					this._root = global.location.pathname.replace(/[\/\\]*[^\/\\]*$/, '');
 
 				// Ensure a leading slash and join options.root if it's a string.
-				if (typeof options.root === 'string')
-					this._root = joinPath('/', this._root, options.root);
+				if (typeof root === 'string')
+					this._root = joinPath('/', this._root, root);
 				else
 					this._root = joinPath('/', this._root);
 
@@ -401,9 +400,9 @@ void function()
 					// the browser which uses XMLHttpRequest or IE's ActiveX equivalent.
 
 					if (global.XMLHttpRequest)
-						this._get = partial(Resolver.defaultGetBrowser, global.XMLHttpRequest);
+						this._get = partial(defaultGetBrowser, global.XMLHttpRequest);
 					else if (global.ActiveXObject)
-						this._get = partial(Resolver.defaultGetBrowser, global.ActiveXObject('MSXML2.XMLHTTP.3.0'));
+						this._get = partial(defaultGetBrowser, global.ActiveXObject('MSXML2.XMLHTTP.3.0'));
 				}
 
 				if (!this._get)
@@ -458,7 +457,8 @@ void function()
 					return this._cache[path];
 				}
 
-				var source = dethrow(this._get, path);
+				//var source = dethrow(this._get, path);
+				var source = this._get(path);
 				if (typeof source !== 'string')
 				{
 					this._cache[path] = false;
@@ -594,11 +594,11 @@ void function()
 				var module = this._resolver.resolve(name, dirname);
 
 				if (module.source != null)
-					this._moduleInit(module);
+					this._moduleInit(module, name);
 
 				return module.exports;
 			},
-			_moduleInit: function(module)
+			_moduleInit: function(module, name)
 			{
 				var source = module.source;
 				var moduleDirname = dirname(module.id);
@@ -611,7 +611,7 @@ void function()
 
 				try
 				{
-					if (module.source)
+					if (typeof source === 'string')
 					{
 						// The module was resolved.
 
@@ -643,7 +643,7 @@ void function()
 						// The module is unresolved.
 
 						if (this._fallback)
-							module.exports = this._fallback(name);
+							module.exports = this._fallback(module.id);
 						else
 							throw new Error('failed resolving "' + name + '"');
 					}
@@ -748,9 +748,16 @@ void function()
 
 			// Attempt to get the script tag that included Needy. It should be the last script on
 			// the page with a "data-needy" attribute.
-			var script, scripts = global.document.getElementsByTagName('script');
-			while (main === false && (script = scripts.pop()))
+			var script, scripts = global.document.getElementsByTagName('script'),
+				i = scripts.length;
+
+			while (main === false && i--)
+			{
+				script = scripts[i];
 				main = script.hasAttribute('data-needy') && script.getAttribute('data-needy');
+			}
+			//while (main === false && (script = scripts.pop()))
+			//	main = script.hasAttribute('data-needy') && script.getAttribute('data-needy');
 		}
 
 		// If there was no needy script tag, then check the options object for a string main
