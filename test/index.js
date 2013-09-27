@@ -12,8 +12,11 @@ function block()
 		window.log(arguments[i]);
 }
 
-function test(callback)
+function test(message, callback)
 {
+	window.log();
+	window.log(message, '#afa');
+
 	try
 	{
 		callback();
@@ -29,8 +32,7 @@ block(
 	'Hello World!'
 );
 
-block('Requiring "needy" core module.');
-test(function()
+test('Requiring "needy" core module.', function()
 {
 	require('needy');
 });
@@ -51,8 +53,7 @@ var nonexistant = [
 var i = 0, max = nonexistant.length;
 for (; i < max; ++i)
 {
-	block('require("' + nonexistant[i] + '");');
-	test(function()
+	test('require("' + nonexistant[i] + '");', function()
 	{
 		require(nonexistant[i]);
 	});
