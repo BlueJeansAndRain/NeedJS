@@ -4,7 +4,13 @@
   "description": "CommonJS modules for the browser, Node.js, or any other JavaScript environment.",
   "main": "needy.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./test.js"
+  },
+  "config": {
+    "port": 8080
+  },
+  "devDependencies": {
+    "node-static": "0.7.x"
   },
   "repository": {
     "type": "git",
