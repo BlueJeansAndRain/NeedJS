@@ -72,46 +72,97 @@ void function()
 			};
 		}
 
-		// Combine path parts into a single path.
+		// Get the directory part of a path.
+		// * Replicates Node.js path.dirname behavior.
+		function dirname(path)
+		{
+			return path.replace(/(^(?:[a-z]:)?[\/\\])?[\/\\]*[^\/\\]*[\/\\]*$/i, '$1') || '.';
+		}
+
+		// Combine path parts into a single path, handing all . or .. or empty parts and normalizing
+		// separators to foward slashes.
+		// * Replicates Node.js path.join behavior, with the exception that this method normalizes
+		//   all separators to forward slashes unlike the Node.js version.
 		function joinPath()
 		{
-			var parts = Array.prototype.slice.call(arguments, 0),
-				i = parts.length;
+			var parts = Array.prototype.slice.call(arguments, 0);
+			if (parts[0] instanceof Array)
+				parts = parts[0];
 
-			while (i--) if ((''+parts[i]).charAt(0) !== '/')
+			// Strip off all parts before the first part with a root prefix.
+			var i = parts.length,
+				absolute = false;
+			while (i--) if (isAbsPath(parts[i]))
 			{
 				parts = parts.slice(i);
+				absolute = true;
 				break;
 			}
 
-			parts = parts.join('/').split(/\/+/).reverse();
+			parts = parts.join('/').split(/[\/\\]+/).reverse();
+
+			// If the path is absolute, then save the root prefix so that it doesn't get removed by
+			// a .. part.
+			var prefix;
+			if (absolute)
+				prefix = parts.pop();
+
 			i = parts.length;
 
 			while (i--)
 			{
 				switch (parts[i])
 				{
+					case '':
+						if (i !== 0)
+							parts.splice(i, 1);
+						break;
 					case '.':
-						parts.splice(i, 1);
+						if (i !== 0)
+							parts.splice(i, 1);
+						else
+							parse[i] = '';
 						break;
 					case '..':
-						parts.splice(i, 2);
+						// Only strip off leading .. parts if the path is absolute.
+						if (abs || parts[i+1] !== '..')
+							parts.splice(i, 2);
 						break;
 				}
 			}
 
-			return parts.reverse().join('/');
+			parts = parts.reverse();
+
+			// If there's a prefix, add it back in.
+			if (prefix)
+				parts.unshift(prefix);
+
+			// Always end up with forward slash path separators.
+			return parts.join('/');
+		}
+
+		// Remove the trailing slashes, making sure to leave one leading slash if the path is
+		// nothing but slashes.
+		function stripTrailingSlashes(path)
+		{
+			return path.replace(/(?!^)[\/\\]+/, '');
+		}
+
+		// Detect a windows or linux root prefix.
+		function isAbsPath(path)
+		{
+			return (/^([a-z]:)?[\/\\]/i).test(''+path);
 		}
 
 		// Make sure a path is a string, isn't empty, contains valid characters, and optionally
 		// isn't a dot path.
-		function validPath(path, allowDots)
+		function isValidPath(path, allowDots)
 		{
 			if (typeof path !== 'string')
 				throw new Error("non-string");
 			if (!path)
 				throw new Error("empty");
-			if (/[^a-z0-9_~\/\.\-]/i.test(path))
+			if (!/^([a-z]:[\/\\])?[a-z0-9_~\/\.\-]+$/i.test(path))
 				throw new Error("invalid characters");
 			if (!allowDots && /^\.{1,2}$/.test(path))
 				throw new Error("dot/double-dot not allowed");
@@ -143,7 +194,7 @@ void function()
 			if (!(this instanceof Name))
 				return new Name(value);
 
-			if (validPath(value, true))
+			if (isValidPath(value, true))
 				throw new Error("invalid module name");
 
 			var topLevel = /^\.{0,2}\//.test(value);
@@ -166,16 +217,28 @@ void function()
 			}
 		});
 
-		function Module(id, extra)
+		function Module(id, source, extra)
 		{
 			if (!(this instanceof Module))
-				return new Module(id, extra);
+				return new Module(id, source, extra);
 
 			if (id instanceof Name)
 				id = id.value;
 
 			define(this, { configurable: false, writable: false }, { id: id });
 			define(this, { configurable: false }, { exports: {} });
+
+			if (typeof source === 'string')
+			{
+				this.source = source;
+			}
+			else
+			{
+				this.source = false;
+
+				if (source instanceof Object)
+					extra = source;
+			}
 
 			if (extra instanceof Object)
 			{
@@ -198,6 +261,7 @@ void function()
 
 			this._cache = {};
 
+			this._initRoot(options.root);
 			this._initDirectory(options.directory);
 			this._initManifest(options.manifest);
 			this._initGet(options.get);
@@ -206,14 +270,37 @@ void function()
 			this._initLog(options.log);
 		}
 		define(Resolver.prototype, { configurable: false }, {
-			resolve: function(dirname, name)
+			resolve: function(name, dirname)
 			{
-				if (!validPath(dirname, true))
-					throw new Error("invalid resolve dirname path");
-				if (dirname.charAt(0) !== '/')
-					throw new Error("non-absolute resolve dirname path");
+				if (dirname != null)
+				{
+					if (!isValidPath(dirname, true))
+						throw new Error("invalid resolve dirname path");
 
-				dirname = joinPath(dirname);
+					dirname = joinPath(this._root, dirname);
+				}
+				else
+				{
+					dirname = this._root;
+				}
+
+				return this._resolve(dirname, name);
+			},
+			uncache: function(name)
+			{
+				delete this._cache[name];
+			},
+			_cache: void 0,
+			_root: '/',
+			_directory: 'node_modules',
+			_manifest: 'package.json',
+			_get: void 0,
+			_core: void 0,
+			_jsonParse: void 0,
+			_log: function() {},
+			_resolve: function(dirname, name)
+			{
+				this._log('Resolving "' + name + '" in "' + dirname + '"');
 
 				if (!(name instanceof Name))
 					name = new Name(name);
@@ -230,41 +317,67 @@ void function()
 					module = this._loadNonTop(name);
 				}
 
+				// A module is ALWAYS returned because it might be resolved outside of this resolver
+				// and if we didn't create the module then we wouldn't be able to cache it. The
+				// unresolved module's source property will be false.
 				if (!module)
-					module = this._cache[name] = new Module(name, { source: false });
+				{
+					if (this._cache[name])
+						module = this._cache[name];
+					else
+						module = this._cache[name] = new Module(name);
+				}
 
 				return module;
 			},
-			_cache: void 0,
-			_directory: 'node_modules',
-			_manifest: 'package.json',
-			_get: void 0,
-			_core: void 0,
-			_jsonParse: void 0,
-			_log: function() {},
+			_initRoot: function(dirname)
+			{
+				if (typeof __dirname === 'string')
+					this._root = __dirname;
+				else if (typeof __filename === 'string')
+					this._root = dirname(__filename);
+				else if (typeof module !== 'undefined' && module && typeof module.uri === 'string')
+					this._root = dirname(module.uri);
+				else if (global.location && typeof global.location.pathname === 'string')
+					this._root = global.location.pathname.replace(/[\/\\]*[^\/\\]*$/, '');
+
+				// Ensure a leading slash and join options.root if it's a string.
+				if (typeof options.root === 'string')
+					this._root = joinPath('/', this._root, options.root);
+				else
+					this._root = joinPath('/', this._root);
+
+				this._root = stripTrailingSlashes(this._root);
+
+				this._log('Root is "' + this._root + '"');
+			},
 			_initDirectory: function(directory)
 			{
-				if (directory == null)
-					return;
+				if (directory != null)
+				{
+					if (!directory)
+						this._directory = false;
+					else if (isValidPath(directory) && directory.indexOf('/') === -1)
+						this._directory = directory;
+					else
+						throw new Error("invalid directory name");
+				}
 
-				if (!directory)
-					this._directory = false;
-				else if (validPath(directory) && directory.indexOf('/') === -1)
-					this._directory = directory;
-				else
-					throw new Error("invalid directory name");
+				this._log('Top-level sub-directory name is "' + this._directory + '"');
 			},
 			_initManifest: function(manifest)
 			{
-				if (manifest == null)
-					return;
+				if (manifest != null)
+				{
+					if (!manifest)
+						this._manifest = false;
+					else if (isValidPath(manifest) && manifest.indexOf('/') === -1)
+						this._manifest = manifest;
+					else
+						throw new Error("invalid manifest name");
+				}
 
-				if (!manifest)
-					this._manifest = false;
-				else if (validPath(manifest) && manifest.indexOf('/') === -1)
-					this._manifest = manifest;
-				else
-					throw new Error("invalid manifest name");
+				this._log('Manifest filename is "' + this._manifest + '"');
 			},
 			_initGet: function(get)
 			{
@@ -305,7 +418,7 @@ void function()
 				for (name in core)
 				{
 					path = core[name];
-					if (!validPath(path))
+					if (!isValidPath(path))
 						throw new Error("invalid core path");
 
 					name = new Name(name);
@@ -314,7 +427,9 @@ void function()
 					if (this._core.hasOwnProperty(name.value))
 						throw new Error("core name redefinition");
 
-					this._core[name.value] = path;
+					this._core[name.value] = joinPath(this._root, path);
+
+					this._log('Core module added: "' + name.value + '" -> "' + this._core[name.value] + '"');
 				}
 			},
 			_initJsonParse: function(jsonParse)
@@ -329,16 +444,31 @@ void function()
 				if (log instanceof Function)
 					this._log = log;
 			},
-			_loadPath: function(path)
+			_load: function(path)
 			{
+				this._log('  Trying "' + path + '"');
+
 				if (this._cache.hasOwnProperty(path))
+				{
+					if (this._cache[path])
+						this._log('  + Found (cache)');
+					else
+						this._log('  - Not found (cache)');
+
 					return this._cache[path];
+				}
 
 				var source = dethrow(this._get, path);
 				if (typeof source !== 'string')
+				{
 					this._cache[path] = false;
+					this._log('  - Not found');
+				}
 				else
-					this._cache[path] = new Module(path, { source: source });
+				{
+					this._cache[path] = new Module(path, source);
+					this._log('  + Found');
+				}
 
 				return this._cache[path];
 			},
@@ -348,29 +478,43 @@ void function()
 					// Names that end in / are explicitly directories.
 					return false;
 
-				return this._loadPath(name) || this._loadPath(name + '.js') || this._loadPath(name + '.json') || this._loadPath(name + '.node');
+				return this._load(name) || this._load(name + '.js') || this._load(name + '.json') || this._load(name + '.node');
 			},
 			_loadManifest: function(name)
 			{
 				if (!this._jsonParse)
-					return { main: 'index.js' };
+					return false;
 
-				var manifest = this._loadPath(joinPath(name, this._manifest));
+				this._log('Getting manifest for "' + name + '"');
+
+				var manifest = this._load(joinPath(name, this._manifest));
 				if (!manifest)
-					return { main: 'index.js' };
+					return false;
 
 				manifest = dethrow(this._jsonParse, manifest);
 				if (!(manifest instanceof Object))
-					return { main: 'index.js' };
+				{
+					this._log('Invalid manifest for "' + name + '"');
+					return false;
+				}
 
 				return manifest;
 			},
 			_loadDirectory: function(name)
 			{
-				var manifest = this._loadManifest(name);
-				var module = this._loadFile(joinPath(name, manifest.main));
+				var manifest = this._loadManifest(name),
+					module;
 
-				if (module)
+				if (manifest && manifest.main && typeof manifest.main === 'string')
+				{
+					this._log('Manifest main for "' + name + '" is "' + manifest.main + '"');
+					module = this._loadFile(joinPath(name, manifest.main)) || joinPath(name, manifest.main, 'index');
+				}
+
+				if (!module)
+					module = this._loadFile(joinPath(name, 'index'));
+
+				if (module && manifest)
 					module.manifest = manifest;
 
 				return module;
@@ -382,26 +526,30 @@ void function()
 			_loadTop: function(dirname, name)
 			{
 				if (this._core.hasOwnProperty(name))
+				{
+					this._log('Core map contains "' + name + '"');
 					return this._loadNonTop(this._core[name]);
+				}
 
-				// TODO: This part is not right.
+				var parts = (dirname === '/') ? [''] : dirname.split(/[\/\\]/);
 
-				var parts = dirname.split('/'),
-					min = (parts.indexOf(this._directory) + 1) || 1,
-					path, module;
+				// If dirname contains the top-level subdirectory, then consider the top-most one
+				// the "root" of the search.
+				var min = parts.indexOf(this._directory);
+				min = (min === -1) ? 0 : min - 1;
+				if (min === -1)
+					min = 0;
 
-				if (!parts[parts.length - 1])
-					parts.pop();
-
+				var module;
 				while (parts.length > min)
 				{
-					if (parts[parts.length - 1] === this._directory)
-						path = joinPath(parts.join('/'), name);
-					else
-						path = joinPath(parts.join('/'), this._directory, name);
-
-					if (module = this._loadNonTop(path))
-						return module;
+					// Don't search in nested dependency directories.
+					// Example: .../node_modules/node_modules
+					if (parts[parts.length - 1] !== this._directory)
+					{
+						if (module = this._loadNonTop(joinPath(parts.concat([this._directory, name]))))
+							return module;
+					}
 
 					parts.pop();
 				}
@@ -418,44 +566,10 @@ void function()
 			if (!(options instanceof Object))
 				options = {};
 
-			if (options.jsonParse instanceof Function)
-				this._jsonParse = options.jsonParse;
-			else if (typeof JSON !== 'undefined')
-				this._jsonParse = JSON.parse;
-
-			if (options.fallback instanceof Function)
-				this._fallback = options.fallback;
-			else if (typeof require !== 'undefined' && require instanceof Function)
-				this._fallback = require;
-
-			if (options.binaryInit instanceof Function)
-				this._binaryInit = options.binaryInit;
-			else if (typeof require !== 'undefined' && require instanceof Function)
-				this._binaryInit = require;
-
-			// TODO: Move the startPath option to the Resolver class for use when resolving core
-			// modules and modules with no dirname.
-			if (options.startPath != null)
-				this._dirname = options.startPath;
-			else if (typeof __dirname !== 'undefined')
-				this._dirname = __dirname;
-			else if (global.location && typeof global.location.pathname === 'string')
-				this._dirname = global.location.pathname.replace(/[^\/]+$/, '');
-
-			if (options.resolve instanceof Function)
-				this._resolve = options.resolve;
-			else
-			{
-				var resolver = new Resolver({
-					directory: options.directory,
-					manifest: options.manifest,
-					get: options.get,
-					core: options.core,
-					log: options.log
-				});
-
-				this._resolve = portable(resolver, 'resolve');
-			}
+			this._initResolver(options);
+			this._initJsonParse(options.jsonParse);
+			this._initFallback(options.fallback);
+			this._initBinaryInit(options.fallback);
 		}
 		define(Needy.prototype, { configurable: false }, {
 			init: function(name)
@@ -468,66 +582,119 @@ void function()
 				return this._main.exports;
 			},
 			_main: void 0,
+			_resolver: void 0,
 			_jsonParse: false,
 			_fallback: false,
 			_binaryInit: false,
-			_dirname: '/',
-			_resolve: void 0,
 			_require: function(dirname, name)
 			{
 				if (name === 'needy')
 					return Needy;
 
-				var module = this._resolve(dirname, name);
+				var module = this._resolver.resolve(name, dirname);
 
-				if (typeof module.source === 'string')
-				{
-					// The module has not been initialized yet.
-
-					var source = module.source;
-					var moduleDirname = module.id.replace(/[^\/]+$/, '');
-
-					delete module.source;
-					delete module.manifest;
-
-					if (!this._main)
-						define(this, { writable: false }, { _main: module });
-
-					if (/\.json$/.test(module.id))
-					{
-						if (this._jsonParse)
-							module.exports = this._jsonParse(source);
-						else
-							throw new Error("json modules unsupported");
-					}
-					else if (/\.node$/.test(module.id))
-					{
-						if (this._binaryInit)
-							module.exports = this._binaryInit(module.id);
-						else
-							throw new Error("binary modules unsupported");
-					}
-					else
-					{
-						define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), moduleDirname) });
-						define(module.require, { configurable: false }, { main: this._main });
-
-						/* jshint evil: true */
-						Function('module', 'exports', 'require', '__filename', '__dirname', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, global);
-					}
-				}
-				else if (module.source === false)
-				{
-					delete module.source;
-					delete module.manifest;
-
-					if (this._fallback)
-						module.exports = this._fallback(name);
-					else
-						throw new Error('failed resolving "' + name + '"');
-				}
+				if (module.source != null)
+					this._moduleInit(module);
 
 				return module.exports;
+			},
+			_moduleInit: function(module)
+			{
+				var source = module.source;
+				var moduleDirname = dirname(module.id);
+
+				delete module.source;
+				delete module.manifest;
+
+				if (!this._main)
+					this._main = module;
+
+				try
+				{
+					if (module.source)
+					{
+						// The module was resolved.
+
+						if (/\.json$/.test(module.id))
+						{
+							if (this._jsonParse)
+								module.exports = this._jsonParse(source);
+							else
+								throw new Error("json modules unsupported");
+						}
+						else if (/\.node$/.test(module.id))
+						{
+							if (this._binaryInit)
+								module.exports = this._binaryInit(module.id);
+							else
+								throw new Error("binary modules unsupported");
+						}
+						else
+						{
+							define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), moduleDirname) });
+							define(module.require, { configurable: false }, { main: this._main });
+
+							/* jshint evil: true */
+							Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, this, global);
+						}
+					}
+					else
+					{
+						// The module is unresolved.
+
+						if (this._fallback)
+							module.exports = this._fallback(name);
+						else
+							throw new Error('failed resolving "' + name + '"');
+					}
+				}
+				catch (e)
+				{
+					this._resolver.uncache(module.id);
+
+					if (this._main === module)
+						this._main = void 0;
+
+					throw e;
+				}
+			},
+			_initResolver: function(options)
+			{
+				if (options.resolver instanceof Resolver)
+				{
+					this._resolver = options.resolver;
+				}
+				else
+				{
+					this._resolver = new Resolver({
+						directory: options.directory,
+						manifest: options.manifest,
+						get: options.get,
+						core: options.core,
+						log: options.log
+					});
+				}
+			},
+			_initJsonParse: function(jsonParse)
+			{
+				if (jsonParse instanceof Function)
+					this._jsonParse = jsonParse;
+				else if (typeof JSON !== 'undefined')
+					this._jsonParse = JSON.parse;
+			},
+			_initFallback: function(fallback)
+			{
+				if (fallback instanceof Function)
+					this._fallback = fallback;
+				else if (typeof require !== 'undefined' && require instanceof Function)
+					this._fallback = require;
+			},
+			_initBinaryInit: function(binaryInit)
+			{
+				if (binaryInit instanceof Function)
+					this._binaryInit = binaryInit;
+				else if (typeof require !== 'undefined' && require instanceof Function)
+					this._binaryInit = require;
 			}
 		});
 
@@ -539,8 +706,11 @@ void function()
 				dethrow: dethrow,
 				partial: partial,
 				portable: portable,
+				dirname: dirname,
 				joinPath: joinPath,
-				validPath: validPath,
+				stripTrailingSlashes: stripTrailingSlashes,
+				isAbsPath: isAbsPath,
+				isValidPath: isValidPath,
 				defaultGetNode: defaultGetNode,
 				defaultGetBrowser: defaultGetBrowser
 			})
