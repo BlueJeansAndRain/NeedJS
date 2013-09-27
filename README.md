@@ -32,10 +32,10 @@ Checkout the repository from GitHub.
 
     git clone git@github.com:BlueJeansAndRain/needy.git
 
-Download the latest release in the GitHub repository.
+Download the current release in the GitHub repository.
 
-* [zip](https://github.com/BlueJeansAndRain/needy/archive/latest.zip)
-* [tar.gz](https://github.com/BlueJeansAndRain/needy/archive/latest.tar.gz)
+* [zip](https://github.com/BlueJeansAndRain/needy/archive/current.zip)
+* [tar.gz](https://github.com/BlueJeansAndRain/needy/archive/current.tar.gz)
 
 Usage
 -----
