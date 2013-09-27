@@ -10,8 +10,6 @@ function block()
 	var i = 0, max = arguments.length;
 	for (; i < max; ++i)
 		window.log(arguments[i]);
-
-	window.log();
 }
 
 function test(callback)
@@ -31,16 +29,31 @@ block(
 	'Hello World!'
 );
 
-block('Requiring "needy" core module...');
-
+block('Requiring "needy" core module.');
 test(function()
 {
 	require('needy');
 });
 
-block('Requiring non-existent relative module names...');
+block('Requiring non-existent modules. These are expected to fail, but should illuminate the module resolution algorithm.');
 
-test(function()
+var nonexistant = [
+	'./a/b',
+	'./c/d/',
+	'../e/f',
+	'../g/h/',
+	'/i/j',
+	'/k/l/',
+	'm',
+	'n/o'
+];
+
+var i = 0, max = nonexistant.length;
+for (; i < max; ++i)
 {
-	require('./foo/bar');
-});
+	block('require("' + nonexistant[i] + '");');
+	test(function()
+	{
+		require(nonexistant[i]);
+	});
+}

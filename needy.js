@@ -246,13 +246,13 @@ void function()
 			this._cache = {};
 			this._core = {};
 
+			this._initLog(options.log);
 			this._initRoot(options.root);
 			this._initDirectory(options.directory);
 			this._initManifest(options.manifest);
 			this._initGet(options.get);
 			this._initCore(options.core);
 			this._initJsonParse(options.jsonParse);
-			this._initLog(options.log);
 		}
 		define(Resolver.prototype, { configurable: false }, {
 			resolve: function(name, dirname)
@@ -310,13 +310,13 @@ void function()
 				return this;
 			},
 			_cache: void 0,
+			_log: function() {},
 			_root: '/',
 			_directory: 'node_modules',
 			_manifest: 'package.json',
 			_get: void 0,
 			_core: void 0,
 			_jsonParse: void 0,
-			_log: function() {},
 			_resolve: function(dirname, name)
 			{
 				this._log('Resolving "' + name + '" in "' + dirname + '"');
@@ -356,6 +356,11 @@ void function()
 
 				return module;
 			},
+			_initLog: function(log)
+			{
+				if (log instanceof Function)
+					this._log = log;
+			},
 			_initRoot: function(root)
 			{
 				if (typeof __dirname === 'string')
@@ -365,13 +370,15 @@ void function()
 				else if (typeof module !== 'undefined' && module && typeof module.uri === 'string')
 					this._root = dirname(module.uri);
 				else if (global.location && typeof global.location.pathname === 'string')
-					this._root = global.location.pathname.replace(/[\/\\]*[^\/\\]*$/, '');
+					this._root = global.location.pathname.replace(/[\/\\]*[^\/\\]*$/, '') || '/';
 
-				// Ensure a leading slash and join options.root if it's a string.
 				if (typeof root === 'string')
-					this._root = joinPath('/', this._root, root);
+					this._root = joinPath(this._root, root);
 				else
-					this._root = joinPath('/', this._root);
+					this._root = joinPath(this._root);
+
+				if (!isAbsPath(this._root))
+					throw new Error('root non-absolute: "' + this._root + '"');
 
 				this._root = stripTrailingSlashes(this._root);
 
@@ -448,11 +455,6 @@ void function()
 					this._jsonParse = jsonParse;
 				else if (typeof JSON !== 'undefined')
 					this._jsonParse = JSON.parse;
-			},
-			_initLog: function(log)
-			{
-				if (log instanceof Function)
-					this._log = log;
 			},
 			_addCore: function(name, core)
 			{
@@ -564,27 +566,30 @@ void function()
 						return this._loadNonTop(this._core[name]);
 				}
 
-				var parts = (dirname === '/') ? [''] : dirname.split(/[\/\\]/);
+				var rootPrefix = dirname.match(/^(?:(?:[a-z]:)?[\/\\])?/i)[0];
+				dirname = dirname.substr(rootPrefix.length);
+
+				var parts;
+				if (dirname)
+					parts = dirname.split(/[\/\\]/);
+				else
+					parts = [];
 
 				// If dirname contains the top-level subdirectory, then consider the top-most one
 				// the "root" of the search.
-				var min = parts.indexOf(this._directory);
-				min = (min === -1) ? 0 : min - 1;
-				if (min === -1)
-					min = 0;
+				var min = Math.max(-1, parts.indexOf(this._directory) - 1),
+					i = parts.length - 1,
+					module;
 
-				var module;
-				while (parts.length > min)
+				for (; i >= min; --i)
 				{
 					// Don't search in nested dependency directories.
 					// Example: .../node_modules/node_modules
-					if (parts[parts.length - 1] !== this._directory)
-					{
-						if (module = this._loadNonTop(joinPath(parts.concat([this._directory, name]))))
-							return module;
-					}
+					if (i >= 0 && parts[i] === this._directory)
+						continue;
 
-					parts.pop();
+					if (module = this._loadNonTop(rootPrefix + joinPath(parts.slice(0, i + 1).concat([this._directory, name]))))
+						return module;
 				}
 
 				return false;
