@@ -12,7 +12,6 @@ var path = require('path');
 
 var filename = path.resolve(path.join(__dirname, '../needy.js'));
 var source = fs.readFileSync(filename, { encoding: 'utf8' });
-//var matches = source.match(/^(\s*)var __version_updated_on_prepublish = "[0-9\.]*";\s*$/g);
 
 var match = source.match(/^(\s*)var __version_updated_on_prepublish = "([0-9\.]*)";/m);
 if (match == null)
