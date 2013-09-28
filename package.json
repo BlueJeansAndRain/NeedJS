@@ -7,10 +7,11 @@
     "needy": "./cli.js"
   },
   "scripts": {
-    "test": "./test.js"
+    "prepublish": "node ./scripts/prepublish.js",
+    "test": "node ./scripts/test.js"
   },
   "config": {
-    "port": 8080
+    "test_port": 8080
   },
   "devDependencies": {
     "node-static": "0.7.x"

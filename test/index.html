@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Needy Test Page</title>
+		<script src="ui.js"></script>
+		<style>
+			body { font-family: monospace; font-size: 10px; background-color: black; color: white; }
+			#title { border-bottom: 1px solid white; margin-bottom: 1em; }
+			#log > div { white-space: pre-wrap; min-height: 1em; }
+		</style>
+	</head>
+	<body>
+		<div id="title">Needy</div>
+		<div id="log">
+			<div style="color: #aaf;">This is a quick example of Needy working in the browser, requiring different types of modules in multiple directories. Some of the following examples intentially require non-existent modules so that the entire set of possible paths for the module name will be traversed.</div>
+			<div></div>
+		</div>
+	</body>
+</html>
+
+<script>
+	window.needy = {
+		root: "./app",
+		main: "./main.js",
+		core: {
+			"core1": "./core/core1.js",
+			"core2": function()
+			{
+				window.ui.logger('core2 loaded');
+			}
+		},
+		log: function(message)
+		{
+			window.ui.logger(message, "#bbb");
+		}
+	};
+</script>
+
+<!-- If you're running this via "npm test", you may notice that needy.js is not actually in the document root. The web server is providing an alias to needy.js in the project root, so please pretend it is in the document root. -->
+<script src="needy.js"></script>

@@ -1,5 +1,7 @@
 void function()
 {
+	var __version_updated_on_prepublish = "0.0.11";
+
 	"use strict";
 	/* jshint evil: true */
 	/* globals module, define */
@@ -527,8 +529,15 @@ void function()
 				if (!manifest)
 					return false;
 
-				manifest = dethrow(this._jsonParse, manifest);
-				if (!(manifest instanceof Object))
+				// TODO: Module initialization should probably be moved into the Module class so
+				//       it's not being done here and in the Needy class.
+				if (typeof manifest.source === "string")
+				{
+					manifest.exports = dethrow(this._jsonParse, manifest.source);
+					delete manifest.source;
+				}
+
+				if (!(manifest.exports instanceof Object) || !manifest.exports.main || typeof manifest.exports.main !== 'string')
 				{
 					this._log('  * Invalid manifest for "' + name + '"');
 					return false;
@@ -541,10 +550,10 @@ void function()
 				var manifest = this._loadManifest(name),
 					module;
 
-				if (manifest && manifest.main && typeof manifest.main === 'string')
+				if (manifest)
 				{
-					this._log('  * Manifest main for "' + name + '" is "' + manifest.main + '"');
-					module = this._loadFile(joinPath(name, manifest.main)) || joinPath(name, manifest.main, 'index');
+					this._log('  * Manifest main for "' + name + '" is "' + manifest.exports.main + '"');
+					module = this._loadFile(joinPath(name, manifest.exports.main)) || this._loadFile(joinPath(name, manifest.exports.main, 'index'));
 				}
 
 				if (!module)
@@ -721,11 +730,13 @@ void function()
 					resolver = options.resolver;
 				else
 					resolver = new Resolver({
+						log: options.log,
+						root: options.root,
 						prefix: options.prefix,
 						manifest: options.manifest,
 						get: options.get,
 						core: options.core,
-						log: options.log
+						jsonParse: options.jsonParse
 					});
 
 				define(this, { configurable: false, writable: false }, { resolver: resolver });
@@ -759,6 +770,9 @@ void function()
 					this._binaryInit = require;
 			}
 		});
+
+		define(Needy.prototype, { configurable: false, writable: false }, { version: __version_updated_on_prepublish });
+		define(Needy, { configurable: false, writable: false }, { version: __version_updated_on_prepublish });
 
 		return define(Needy, null, {
 			Resolver: Resolver,

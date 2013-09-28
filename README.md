@@ -11,6 +11,7 @@ Features
 --------
 
 * Can be included as a CommonJS module, AMD module, or a simple global variable.
+* Can be used on the command line to call scripts or as a REPL.
 * Complies with CommonJS modules specification (1.1.1)
     * Secure (sandbox) mode only. `module.paths` and `module.uri` will not be defined.
 * Compatible with the Node.js module system.
@@ -27,6 +28,10 @@ Installation
 Install via NPM.
 
     npm install needy
+
+It can also be installed as a command line application.
+
+    npm install -g needy
 
 Checkout the repository from GitHub.
 
@@ -97,6 +102,37 @@ If no main module name is set via the `needy` global or `data-needy` attribute, 
 
         needy.init("main");
     });
+
+### On The Command Line
+
+First, make sure you've installed Needy globally as outlined in the Installation section.
+
+Calling Needy with no arguments starts a Node.js REPL with a Needy module system.
+
+    needy
+
+Execute a script using the Needy module system instead of the Node.js module system by passing the script path as the first arguments. Extra arguments will be passed to the script via `process.argv`.
+
+    needy path/to/script.js arg1 arg2 ...
+
+You can even use a shebang to make executable JavaScript files automatically use Needy.
+
+Hypothetical "foo.js" file:
+
+    #!/usr/bin/env needy
+    if (typeof __needy !== 'undefined')
+        console.log('Needy :)');
+    else
+        console.log('Node.js :(');
+
+Shell:
+
+    chmod +x foo.js
+    ./foo.js
+
+Output:
+
+    Needy :)
 
 Options
 -------

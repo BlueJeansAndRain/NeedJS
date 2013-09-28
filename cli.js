@@ -26,6 +26,9 @@ if (typeof __needy === 'undefined' && require.main === module)
 		repl.__filename = __filename;
 		repl.__dirname = __dirname;
 		repl.__needy = needy;
+
+		// Add the Needy class to the REPL context just for fun.
+		repl.Needy = Needy;
 	}
 	else
 	{

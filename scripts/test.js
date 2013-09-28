@@ -6,8 +6,8 @@ var Static = require("node-static").Server;
 var http = require('http');
 var path = require('path');
 
-var port = parseInt(process.env.npm_package_config_port, 10) || 8080;
-var docroot = new Static(path.join(__dirname), {
+var port = parseInt(process.env.npm_package_config_test_port, 10) || 8080;
+var docroot = new Static(path.resolve(path.join(__dirname, '../test')), {
 	cache: false,
 	headers: {
 		"Cache-Control": "no-store"
@@ -18,7 +18,10 @@ http.createServer(function(req, res)
 {
 	req.on('end', function()
 	{
-		docroot.serve(req, res);
+		if (req.url === '/needy.js')
+			docroot.serveFile('../needy.js', 200, {}, req, res);
+		else
+			docroot.serve(req, res);
 	}).resume();
 }).listen(port);
 
