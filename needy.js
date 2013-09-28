@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.0.12";
+	var __version_updated_on_prepublish = "0.0.14";
 
 	"use strict";
 	/* jshint evil: true */
