@@ -60,61 +60,73 @@ Usage
 
 ### In The Browser
 
-    <script src="needy.min.js" data-needy="main"></script>
+```html
+<script src="needy.min.js" data-needy="main"></script>
+```
 
 If you want to set more options than just the main module, you can do it in one of the following ways.
 
 Define a `needy` global object.
 
-    <script>
-        window.needy = {
-            ...
-        };
-    </script>
-    <script src="needy.js" data-needy="main"></script>
+```html
+<script>
+    window.needy = {
+        ...
+    };
+</script>
+<script src="needy.js" data-needy="main"></script>
+```
 
 The main module name can also be given in the `needy` global instead of as a `data-needy` script attribute.
 
-    <script>
-        window.needy = {
-            main: "main",
-            ...
-        }
-    </script>
-    <script src="needy.js"></script>
+```html
+<script>
+    window.needy = {
+        main: "main",
+        ...
+    }
+</script>
+<script src="needy.js"></script>
+```
 
 Instantiate the Needy class and call its init method.
 
-    <script src="needy.js"></script>
-    <script>
-        var needy = new Needy({
-            ...
-        });
-
-        needy.init("main");
-    </script>
-
-If no main module name is set via the `needy` global or `data-needy` attribute, then no instances of the Needy class will be automatically created.
-
-### As A CommonJS Module
-
-    var Needy = require('needy');
+```html
+<script src="needy.js"></script>
+<script>
     var needy = new Needy({
         ...
     });
 
     needy.init("main");
+</script>
+```
+
+If no main module name is set via the `needy` global or `data-needy` attribute, then no instances of the Needy class will be automatically created.
+
+### As A CommonJS Module
+
+```javascript
+var Needy = require('needy');
+var needy = new Needy({
+    ...
+});
+
+needy.init("main");
+```
 
 ### As An AMD Module
 
-    define(["path/to/needy"], function(Needy)
-    {
-        var needy = new Needy({
-            ...
-        });
-
-        needy.init("main");
+```javascript
+define(["path/to/needy"], function(Needy)
+{
+    var needy = new Needy({
+        ...
     });
+
+    needy.init("main");
+});
+```
 
 ### On The Command Line
 
@@ -137,85 +149,87 @@ Options
 
 Module resolution, logging, and core environment can be customized via an options object.
 
-    {
-        // The main module name to require. The default resolve method will
-        // require a top-level or relative to the startPath option.
-        main: "main",
+```javascript
+{
+    // The main module name to require. The default resolve method will
+    // require a top-level or relative to the startPath option.
+    main: "main",
 
-        // Do something with a log message. Defaults to ignoring log messages.
-        log: console.log,
+    // Do something with a log message. Defaults to ignoring log messages.
+    log: console.log,
 
-        // Called when Needy can't resolve a module name. Defaults to an
-        // existing require method if one is defined in the scope that
-        // required/included Needy.
-        fallback: function(name) {
-            // Return module exports or throw an exception.
-        },
+    // Called when Needy can't resolve a module name. Defaults to an
+    // existing require method if one is defined in the scope that
+    // required/included Needy.
+    fallback: function(name) {
+        // Return module exports or throw an exception.
+    },
 
-        // Set a custom name resolution implementation. Defaults to a
-        // Needy.Resolver instance created with the options passed to the Needy
-        // constructor. This can be an object with a "resolve" method or a
-        // function. The method/function will be passed a module name and the
-        // directory of the module that is requiring it. It should return a
-        // Needy.Module instance or derivative. If it cannot resolve the
-        // module name then it can return false, return a module with source
-        // property set to false, or throw an exception.
-        resolver: new Needy.Resolver(options),
+    // Set a custom name resolution implementation. Defaults to a
+    // Needy.Resolver instance created with the options passed to the Needy
+    // constructor. This can be an object with a "resolve" method or a
+    // function. The method/function will be passed a module name and the
+    // directory of the module that is requiring it. It should return a
+    // Needy.Module instance or derivative. If it cannot resolve the
+    // module name then it can return false, return a module with source
+    // property set to false, or throw an exception.
+    resolver: new Needy.Resolver(options),
 
-        // Define initializers for specific file extensions. There are default
-        // initializers for .js, .json, and .node files. If a file has an
-        // unrecognized extension then the default initializer for .js files
-        // will be used.
-        initializers: {
-            coffee: function(needy, module, source, dirname, global)
-            {
-                // An initalizer for .coffee files. Parse the source and set
-                // the exports.
-            }
-        },
+    // Define initializers for specific file extensions. There are default
+    // initializers for .js, .json, and .node files. If a file has an
+    // unrecognized extension then the default initializer for .js files
+    // will be used.
+    initializers: {
+        coffee: function(needy, module, source, dirname, global)
+        {
+            // An initalizer for .coffee files. Parse the source and set
+            // the exports.
+        }
+    },
 
-        //
-        // Options below this point are for the default Needy.Resolver
-        // instance that is created when the resolver option is not set. They
-        // have no effect if a custom resolver is used._
-        //
+    //
+    // Options below this point are for the default Needy.Resolver
+    // instance that is created when the resolver option is not set. They
+    // have no effect if a custom resolver is used._
+    //
 
-        // The path prefix to use when requiring relative or top-level main
-        // module and core module names. Defaults in order to whichever of the
-        // following exists:__dirname, __filename directory part, module.uri
-        // directory part, window.location directory part, or "/". If this is
-        // not an absolute (beginning with /) path, then it is appended to the
-        // default startPath.
-        root: "/",
+    // The path prefix to use when requiring relative or top-level main
+    // module and core module names. Defaults in order to whichever of the
+    // following exists:__dirname, __filename directory part, module.uri
+    // directory part, window.location directory part, or "/". If this is
+    // not an absolute (beginning with /) path, then it is appended to the
+    // default startPath.
+    root: "/",
 
-        // The dependencies directory name to look for when resolving
-        // top-level module names. Defaults to "node_modules" for Node.js
-        // compatibility.
-        prefix: "node_modules",
+    // The dependencies directory name to look for when resolving
+    // top-level module names. Defaults to "node_modules" for Node.js
+    // compatibility.
+    prefix: "node_modules",
 
-        // The manifest file name to look for in directory modules. Defaults
-        // to "package.json" for Node.js compatibility.
-        manifest: "package.json",
+    // The manifest file name to look for in directory modules. Defaults
+    // to "package.json" for Node.js compatibility.
+    manifest: "package.json",
 
-        // Syncronously fetch the plain/text at a URI. Defaults to an internal
-        // default method based on Node's file system module or XMLHttpRequest
-        // class, depending on what's available in the environment.
-        get: function(uri) {
-            // Return a string on on success. On failure, return a non-string
-            // value or throw an exception.
-        },
+    // Syncronously fetch the plain/text at a URI. Defaults to an internal
+    // default method based on Node's file system module or XMLHttpRequest
+    // class, depending on what's available in the environment.
+    get: function(uri) {
+        // Return a string on on success. On failure, return a non-string
+        // value or throw an exception.
+    },
 
-        // Core module names mapped to their "real" require name or an
-        // initializer function. Top-level and relative module paths will be
-        // required relative to the root option.
-        core: {
-            "process": "./core/process.js,
-            "path": function(needy, module, global)
-            {
-                // Set or return exported API.
-            }ob
+    // Core module names mapped to their "real" require name or an
+    // initializer function. Top-level and relative module paths will be
+    // required relative to the root option.
+    core: {
+        "process": "./core/process.js",
+        "path": function(needy, module, global)
+        {
+            // Set or return exported API.
         }
     }
+}
+```
 
 Advanced API
 ------------
