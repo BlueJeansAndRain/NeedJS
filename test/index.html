@@ -29,6 +29,11 @@
 				window.ui.logger('core2 loaded');
 			}
 		},
+		initializers: {
+			js: function(needy, module, source, dirname, global, defaults) {
+				needy.defaultInitializers.js.apply(null, arguments);
+			}
+		},
 		log: function(message)
 		{
 			window.ui.logger(message, "#bbb");

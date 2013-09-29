@@ -10,17 +10,28 @@ You "should" be able to use Needy in just about any JavaScript environment, eith
 Features
 --------
 
-* Can be included as a CommonJS module, AMD module, or a simple global variable.
-* Can be used on the command line to call scripts or as a REPL.
-* Complies with CommonJS modules specification (1.1.1)
+* Can be included as a CommonJS or an AMD module, otherwise it will expose the `Needy` class as a global.
+* Works or can be configured to work in just about any JavaScript environment.
+    * Can be used with zero configuration in Node.js and most browsers.
+    * Uses only features from ECMAScript 3rd Edition or earlier.
+        * To resolve .json files or directory modules which use a manifest file, JSON.parse must exist.
+* Can be used in the browser or as a command line utility to execute scripts or start a REPL.
+* Complies with the CommonJS modules specification (1.1.1).
     * Secure (sandbox) mode only. `module.paths` and `module.uri` will not be defined.
-* Compatible with the Node.js module system.
+* Has Node.js emulation.
     * Node.js `__filename`, `__dirname`, and `global` variables are defined.
-    * Node.js core modules are not provided by this project.
-        * (planned) They will be available via the [needy-node-core](https://github.com/BlueJeansAndRain/needy-node-core) project, which will be based on the [browser-builtins](https://npmjs.org/package/browser-builtins) project which is the same project that browserify uses for browser compatible Node.js core modules.
-        * Custom core modules can also be added via the Needy `core` option.
     * Node.js-like module resolution algorithm is implemented including "node_modules" sub-directory lookup, and directory modules with or without "package.json" files.
         * 404 warnings may be displayed in a browser's console due to module resolution. This is not a bug, it's just the only way for the browser to determine if a file exists. For production, compiling is recommended.
+    * _Node.js core modules are __not__ provided by this project._
+        * _(planned)_ They will be available via the [needy-nodecore](https://github.com/BlueJeansAndRain/needy-nodecore) project, which will be based on the [browser-builtins](https://npmjs.org/package/browser-builtins) project which is the same project that browserify uses for browser compatible Node.js core modules.
+* More extensible than the Node.js module system.
+    * Add custom core modules.
+    * Add initializers for more file types, beyond the regular JavaScript, JSON, and Node.js binary modules.
+        * Node.js binaries are only supported in Node.js
+    * Change the top-level prefix (node_modules) and manifest (package.json) names.
+    * Define a custom method for getting source code from a path.
+    * Completely redefine module resolution behavior.
+* Under 5kB minified and gzipped.
 
 Installation
 ------------
@@ -147,22 +158,34 @@ Module resolution, logging, and core environment can be customized via an option
         // Do something with a log message. Defaults to ignoring log messages.
         log: console.log,
 
-        // Called when Needy can't resolve a module name. Defaults to a parent
-        // require method if defined (by Node.js for example).
+        // Called when Needy can't resolve a module name. Defaults to an
+        // existing require method if one is defined in the scope that
+        // required/included Needy.
         fallback: function(name) {
             // Return module exports or throw an exception.
         },
 
-        // Called when Needy encounters a binary (.node) module file which it
-        // can't handle. This is similar to the fallback option, but only for
-        // binary modules. Defaults to a parent require method if defined.
-        binaryInit: function(id) {
-            // Return module exports or throw an exception.
-        },
-
-        // Allow a custom name resolution implementation. Defaults to a
-        // Needy.Resolver instance created with this options object.
+        // Set a custom name resolution implementation. Defaults to a
+        // Needy.Resolver instance created with the options passed to the Needy
+        // constructor. This can be an object with a "resolve" method or a
+        // function. The method/function will be passed a module name and the
+        // directory of the module that is requiring it. It should return a
+        // Needy.Module instance or derivative. If it cannot resolve the
+        // module name then it can return false, return a module with source
+        // property set to false, or throw an exception.
         resolver: new Needy.Resolver(options),
+
+        // Define initializers for specific file extensions. There are default
+        // initializers for .js, .json, and .node files. If a file has an
+        // unrecognized extension then the default initializer for .js files
+        // will be used.
+        initializers: {
+            coffee: function(needy, module, source, dirname, global)
+            {
+                // An initalizer for .coffee files. Parse the source and set
+                // the exports.
+            }
+        },
 
         //
         // Options below this point are for the default Needy.Resolver
@@ -195,31 +218,163 @@ Module resolution, logging, and core environment can be customized via an option
             // value or throw an exception.
         },
 
-        // Core module names mapped to their "real" require name, or an
-        // initializeer function. Top-level module paths will be treated as
-        // relative (no tree traversal and prefix is not used). Relative core
-        // require names will be required relative to the startPath option.
+        // Core module names mapped to their "real" require name or an
+        // initializer function. Top-level and relative module paths will be
+        // required relative to the root option.
         core: {
             "process": "./core/process.js,
-            "path": function(module, exports, require, __needy, global)
+            "path": function(needy, module, global)
             {
                 // Set or return exported API.
-            }
+            }ob
         }
     }
 
-Regarding Browserify
---------------------
+Advanced API
+------------
 
-Browserify is a CommonJS module _compiler_ which is targeted at Node.js, while Needy is a CommonJS module _runtime system_ intended for use as a development tool. Both of them will allow the same modular source code to run in browsers and other environments that do not natively support modules.
+In addition to setting options, you can extend Needy, Needy.Resolver, or Needy.Module.
+
+Class structure outline:
+
+* `Needy`
+    * _static_
+        * `Resolver`
+            * _properties_
+                * _cache = Object
+                * _manifestCache = Object
+                * _log = Function
+                * _root = String
+                * _prefix = String
+                * _manifest = String
+                * _get = Function
+                * _core = Object
+            * _methods_
+                * constructor(options)
+                * resolve(name, dirname)
+                * addCore(name, core)
+                * cache(name, module)
+                * uncache(name)
+                * _resolve(dirname, name)
+                * _initLog(options.log)
+                * _initRoot(options.root)
+                * _initPrefix(options.prefix)
+                * _initManifest(options.manifest)
+                * _initGet(options.get)
+                * _initCore(options.core)
+                * _getManifestMain(directory)
+                * _load(path)
+                * _loadFile(name)
+                * _loadDirectory(name)
+                * _loadNonTop(name)
+                * _loadTop(dirname, name)
+        * `Module`
+            * _properties_
+                * id = String
+                * source = String | Function | false
+            * _methods_
+                * constructor(id, source)
+        * version = String
+        * utils = Object
+            * define(obj, options, properties)
+            * dethrow(fn, ...)
+            * partial(fn, ...)
+            * portable(obj, fn)
+            * dirname(path)
+            * joinPath(...)
+            * isAbsPath(path)
+            * isValidPath(path)
+            * defaultGetNode(path)
+            * defaultGetBrowser(path)
+    * _properties_
+        * parent = Needy | null
+        * resolver = Function | Needy.Resolver
+        * fallback = Function | false
+        * defaultInitializers = Object
+            * js = Function
+            * json = Function
+            * node = Function
+        * _mainModule = Needy.Module
+        * _initializers = Object
+    * _methods_
+        * constructor(options)
+        * init(name)
+        * addInitializer(extension, init_function)
+        * _require(dirname, name)
+        * _extendModule(module)
+        * _moduleInit(module, name)
+        * _initResolver(options)
+        * _initFallback(options.fallback)
+        * _initInitializers(options.initializers)
+
+You can write modules that work with the Needy instance that required them via the `__needy` global variable. Needy also automatically defines itself as a core module, so modules can get the Needy class by calling `require("needy")`.
+
+RequireJS vs. Browserify vs. Needy
+----------------------------------
+
+Currently the two hot projects for modular code in the browser are RequireJS and Browserify. Needy fills what I feel is an unclaimed middle ground.\
+
+Here's a breakdown of how they all relate:
+
+* They _all_ support...
+    * Multi-version modules
+    * JSON modules
+    * Almost any JavaScript environment
+* [RequireJS](http://requirejs.org/)
+    * Asynchronous
+    * Pros
+        * Can run uncompiled code.
+        * Comes with a compiler.
+        * Custom module loaders.
+    * Cons
+        * For modules to be cross compatible with Node.js, they must be specially written or re-compiled.
+        * Circular dependencies result in a undefined module API.
+        * No Node.js core module emulation.
+        * No support for NPM module management. Modules in NPM can of course be written to work with RequireJS, but RequireJS does not support the directory scheme NPM uses.
+        * No core module definition at all.
+        * No custom module resolution or fetching.
+* [Browserify](http://browserify.org/)
+    * Synchronous
+    * Pros
+        * Modules are cross compatible with Node.js.
+        * Circular dependencies can be partially defined.
+        * Includes partial Node.js core module emulation.
+        * It is a compiler.
+        * Supports NPM module management.
+    * Cons
+        * No uncompiled code support.
+        * No custom module loader support.
+        * No _extra_ core module definition.
+        * No custom module resolution and fetching.
+* Needy
+    * Synchronous
+    * Pros
+        * Can run uncompiled code.
+        * Circular dependencies can be partially defined.
+        * Modules are cross compatible with Node.js.
+        * Supports NPM module management.
+        * Custom module loaders.
+        * Custom core module definition.
+        * Custom module resolution and fetching.
+    * Cons
+        * No _included_ compiler.
+            * Can leverage Browserify compiler, just like Node.js.
+        * No _built-in_ node core module emulation.
+            * It does support adding Node.js core modules via the (planned) needy-nodecore module.
+
+### Sync vs. Async
+
+Asynchronous is a JavaScript buzzword. It makes great sense for I/O intensive applications, and module loading does require I/O.
+
+RequireJS modules do not actually take much advantage of asynchronous I/O though. The pattern that RequireJS uses actually implies that all modules will be fetched before any of your code runs! It can still make multiple simultaneous requests, which might save a little time, but in the realm of things, not much. On top of that, projects were the overhead might matter are typically compiled for production. The callback AMD pattern is also a little hard to step through when debugging.
+
+Browserify, being a compiler, is synchronous and has even less overhead than RequireJS. However, it's still difficult to step through, because it's all compiled.
+
+Needy is synchronous without being compiled, which makes stepping across modules in your browser's dev console much easier. The tradeoff is that it's absolutely awful as far as loading latency goes, which makes it fairly unsuitable for production. Luckily, it can be compiled (Using Browserify even! Or, Google Closure compiler if you prefer.)
 
 What's It For?
 --------------
 
-Initially, Needy was created to be a development compliment to Browserify and/or Google's Closure Compiler. Allowing modular code to be run as-is in a browser means not having to recompile for every code change and leaves code in a more readable state for your browser's development console.
+Initially, Needy was created to be a development compliment to Browserify and/or Google's Closure Compiler. An easier way to work with CommonJS modular code in development. It has since evolved into a more complete solution, with command line support, extensibility features, and environment feature detection.
 
-Needy was not really intended for production use and makes no real attempt to "fix" the difficulties in implementing client side modules. It's syncronous, is expected to generate 404 warnings, and doesn't care about load times. It simply tries to mimic Node.js module behavior as closely as is reasonably possible on the client side.
-
-It's not a _totally_ unreasonable idea to use Needy in a production web application, given today's average network speeds, good caching policies, modern browser pipelining, and a little server support. However, for anything with a decent amount of traffic or a large code base, compiling is probably still the way to go.
-
-A secondary design goal was to make a module system that is as environment agnostic as possible. Needy uses only features from ECMAScript 3rd Edition or earlier, uses feature detection to provide environment specific implementations, and allows dependency injection in-case of unsupported environments.
+It's not an obvious choice for production use since it makes no real attempt to "fix" the difficulties in implementing browser modules. It's expected to generate 404 warnings while resolving and doesn't care about load times. But it's designed to be extended, so, given reasonable network speeds, good caching policies, modern browser pipelining, and a little server support, it is certainly possible. However, for anything with a decent amount of traffic or a large code base, compiling is probably still the way to go. It's the great JavaScript equalizer.

@@ -94,13 +94,14 @@ void function()
 			// Strip off all parts before the first part with a root prefix.
 			var i = parts.length,
 				rootPrefix;
+
 			while (i--) if (isAbsPath(parts[i]))
 			{
 				// If the path is absolute, then save the root prefix so that it doesn't get
 				// removed by a .. part.
 				parts = parts.slice(i);
 				rootPrefix = parts[0].match(/^([a-z]:|)[\/\\]/i)[1] + '/';
-				parts[0] = parts[0].substr(rootPrefix.length);
+				parts[0] = parts[0].slice(rootPrefix.length);
 				break;
 			}
 
@@ -137,13 +138,6 @@ void function()
 				return rootPrefix + parts.join('/');
 			else
 				return parts.join('/');
-		}
-
-		// Remove the trailing slashes, making sure to leave one leading slash if the path is
-		// nothing but slashes.
-		function stripTrailingSlashes(path)
-		{
-			return path.replace(/(?!^)[\/\\]+$/, '');
 		}
 
 		// Detect a windows or linux root prefix.
@@ -246,6 +240,7 @@ void function()
 				options = {};
 
 			this._cache = {};
+			this._manifestCache = {};
 			this._core = {};
 
 			this._initLog(options.log);
@@ -254,7 +249,6 @@ void function()
 			this._initManifest(options.manifest);
 			this._initGet(options.get);
 			this._initCore(options.core);
-			this._initJsonParse(options.jsonParse);
 		}
 		define(Resolver.prototype, { configurable: false }, {
 			resolve: function(name, dirname)
@@ -312,13 +306,13 @@ void function()
 				return this;
 			},
 			_cache: void 0,
+			_manifestCache: void 0,
 			_log: function() {},
 			_root: '/',
 			_prefix: 'node_modules',
 			_manifest: 'package.json',
 			_get: void 0,
 			_core: void 0,
-			_jsonParse: void 0,
 			_resolve: function(dirname, name)
 			{
 				if (!(name instanceof Name))
@@ -333,18 +327,26 @@ void function()
 
 				var module;
 
+				this._log('  Trying "' + name + '" in cache');
+
 				if (this._cache[name.value])
 				{
+					this._log('  + Found (cache)');
 					module = this._cache[name.value];
-				}
-				else if (name.topLevel && this._prefix)
-				{
-					module = this._loadTop(dirname, name.value);
 				}
 				else
 				{
-					name = joinPath(dirname, name.value);
-					module = this._loadNonTop(name);
+					this._log('  - Not found');
+
+					if (name.topLevel && this._prefix)
+					{
+						module = this._loadTop(dirname, name.value);
+					}
+					else
+					{
+						name = joinPath(dirname, name.value);
+						module = this._loadNonTop(name);
+					}
 				}
 
 				// A module is ALWAYS returned because it might be resolved outside of this resolver
@@ -387,7 +389,9 @@ void function()
 				if (!isAbsPath(this._root))
 					throw new Error('root non-absolute: "' + this._root + '"');
 
-				this._root = stripTrailingSlashes(this._root);
+				// Remove the trailing slashes, making sure to leave one leading slash if the path
+				// is nothing but slashes.
+				this._root = this._root.replace(/(?!^)[\/\\]+$/, '');
 
 				this._log('Root is "' + this._root + '"');
 			},
@@ -456,13 +460,6 @@ void function()
 
 				this.addCore(core);
 			},
-			_initJsonParse: function(jsonParse)
-			{
-				if (jsonParse instanceof Function)
-					this._jsonParse = jsonParse;
-				else if (typeof JSON !== 'undefined')
-					this._jsonParse = JSON.parse;
-			},
 			_addCore: function(name, core)
 			{
 				if (!(core instanceof Function) && !isValidPath(core))
@@ -481,6 +478,48 @@ void function()
 				this._core[name.value] = core;
 
 				this._log('Core module added: "' + name.value + '" -> ' + (typeof core === 'string' ? '"' + core  + '"' : 'Function()'));
+			},
+			_getManifestMain: function(path)
+			{
+				if (typeof JSON === 'undefined' || !this._manifest)
+					return false;
+
+				path = joinPath(path, this._manifest);
+
+				this._log('  Checking for manifest main in "' + path + '"');
+
+				if (this._manifestCache.hasOwnProperty(path))
+				{
+					if (this._manifestCache[path])
+						this._log('  + Found "' + this._manifestCache[path] + '" (cache)');
+					else
+						this._log('  - Not found (cache)');
+
+					return this._manifestCache[path];
+				}
+
+				var source = dethrow(this._get, path);
+				if (typeof source !== 'string')
+				{
+					this._manifestCache[path] = false;
+					this._log('  - Not found');
+
+					return false;
+				}
+
+				var manifest = dethrow(JSON.parse, source);
+				if (!(manifest instanceof Object) || !manifest.main || typeof manifest.main !== 'string')
+				{
+					this._manifestCache[path] = false;
+					this._log('  - Invalid');
+
+					return false;
+				}
+
+				this._manifestCache[path] = manifest.main;
+				this._log('  + Found "' + manifest.main + '"');
+
+				return manifest.main;
 			},
 			_load: function(path)
 			{
@@ -518,51 +557,15 @@ void function()
 
 				return this._load(name) || this._load(name + '.js') || this._load(name + '.json') || this._load(name + '.node');
 			},
-			_loadManifest: function(name)
-			{
-				if (!this._jsonParse || !this._manifest)
-					return false;
-
-				this._log('  Checking for manifest in "' + name + '"');
-
-				var manifest = this._load(joinPath(name, this._manifest));
-				if (!manifest)
-					return false;
-
-				// TODO: Module initialization should probably be moved into the Module class so
-				//       it's not being done here and in the Needy class.
-				if (typeof manifest.source === "string")
-				{
-					manifest.exports = dethrow(this._jsonParse, manifest.source);
-					delete manifest.source;
-				}
-
-				if (!(manifest.exports instanceof Object) || !manifest.exports.main || typeof manifest.exports.main !== 'string')
-				{
-					this._log('  * Invalid manifest for "' + name + '"');
-					return false;
-				}
-
-				return manifest;
-			},
 			_loadDirectory: function(name)
 			{
-				var manifest = this._loadManifest(name),
+				var main = this._getManifestMain(name),
 					module;
 
-				if (manifest)
-				{
-					this._log('  * Manifest main for "' + name + '" is "' + manifest.exports.main + '"');
-					module = this._loadFile(joinPath(name, manifest.exports.main)) || this._loadFile(joinPath(name, manifest.exports.main, 'index'));
-				}
+				if (main)
+					module = this._loadFile(joinPath(name, main)) || this._loadFile(joinPath(name, main, 'index'));
 
-				if (!module)
-					module = this._loadFile(joinPath(name, 'index'));
-
-				if (module && manifest)
-					module.manifest = manifest;
-
-				return module;
+				return module || this._loadFile(joinPath(name, 'index'));
 			},
 			_loadNonTop: function(name)
 			{
@@ -572,16 +575,19 @@ void function()
 			{
 				if (this._core.hasOwnProperty(name))
 				{
-					this._log(' Core contains "' + name + '"');
+					this._log('  Core contains "' + name + '"');
 
 					if (this._core[name] instanceof Function)
+					{
+						this._log(  '  + Found (function)');
 						return new Module(name, this._core[name]);
-					else
-						return this._loadNonTop(this._core[name]);
+					}
+
+					return this._resolve(null, this._core[name]);
 				}
 
 				var rootPrefix = dirname.match(/^(?:(?:[a-z]:)?[\/\\])?/i)[0];
-				dirname = dirname.substr(rootPrefix.length);
+				dirname = dirname.slice(rootPrefix.length);
 
 				var parts;
 				if (dirname)
@@ -621,47 +627,85 @@ void function()
 			if (!(options instanceof Object))
 				options = {};
 
+			this._initializers = {};
+
 			this._initResolver(options);
-			this._initJsonParse(options.jsonParse);
 			this._initFallback(options.fallback);
-			this._initBinaryInit(options.fallback);
+			this._initInitializers(options.initializers);
 
 			if (typeof __needy !== 'undefined' && __needy instanceof Needy)
 				define(this, { configurable: false, writable: false }, { parent: __needy });
 		}
 		define(Needy.prototype, { configurable: false }, {
+			resolver: void 0,
+			fallback: false,
+			defaultInitializers: {
+				js: function(needy, module, source, dirname, global)
+				{
+					Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, dirname, needy, global);
+				},
+				json: function(needy, module, source)
+				{
+					if (typeof JSON.parse === 'undefined')
+						throw new Error('JSON modules are not supported');
+
+					module.exports = JSON.parse(source);
+				},
+				node: function(needy, module, source)
+				{
+					if (typeof require === 'undefined')
+						throw new Error('binary modules (.node) are not supported');
+
+					module.exports = require(module.id);
+				}
+			},
 			init: function(name)
 			{
-				if (this._main)
+				if (this._mainModule)
 					throw new Error("already initialized");
 
 				this._require(null, name);
 
-				return this._main;
+				return this._mainModule;
 			},
-			_main: false,
-			_jsonParse: false,
-			_fallback: false,
-			_binaryInit: false,
+			addInitializer: function(ext, fn)
+			{
+				if (!(/^[a-z0-9]*$/i).test(ext))
+					throw new Error('invalid initializer extension "' + ext + '"');
+
+				if (!(fn instanceof Function))
+					throw new Error('initializers must be functions');
+
+				this._initializers[ext] = fn;
+			},
+			_mainModule: false,
+			_initializers: void 0,
 			_require: function(dirname, name)
 			{
-				var module = this.resolver.resolve(name, dirname);
+				var module = dethrow(this.resolver.resolve ? portable(this.resolver, this.resolver.resolve) : portable(this, this.resolver), name, dirname);
+				if (!(module instanceof Module))
+					module = new Module(name);
 
 				if (module.source != null)
 					this._moduleInit(module, name);
 
 				return module.exports;
 			},
+			_extendModule: function(module, dirname)
+			{
+				define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), dirname) });
+				define(module.require, { configurable: false }, { main: this._mainModule });
+			},
 			_moduleInit: function(module, name)
 			{
+				if (module.error)
+					throw module.error;
+
 				var source = module.source;
-				var moduleDirname = dirname(module.id);
-
 				delete module.source;
-				delete module.manifest;
 
-				if (!this._main)
-					this._main = module;
+				if (!this._mainModule)
+					this._mainModule = module;
 
 				try
 				{
@@ -669,128 +713,117 @@ void function()
 					{
 						// Resolved to source code.
 
-						if (/\.json$/.test(module.id))
-						{
-							if (this._jsonParse)
-								module.exports = this._jsonParse(source);
-							else
-								throw new Error("json modules unsupported");
-						}
-						else if (/\.node$/.test(module.id))
-						{
-							if (this._binaryInit)
-								module.exports = this._binaryInit(module.id);
-							else
-								throw new Error("binary modules unsupported");
-						}
+						var ext = module.id.match(/(?:\.[a-z0-9]*)?$/i)[0].slice(1).toLowerCase(),
+							moduleDirname = dirname(module.id);
+
+						this._extendModule(module, moduleDirname);
+
+						if (this._initializers.hasOwnProperty(ext))
+							this._initializers[ext](this, module, source, moduleDirname, global);
+						else if (this.defaultInitializers.hasOwnProperty(ext))
+							this.defaultInitializers[ext](this, module, source, moduleDirname);
+						else if (this.defaultInitializers.hasOwnProperty('js'))
+							this.defaultInitializers.js(this, module, source, moduleDirname);
 						else
-						{
-							define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), moduleDirname) });
-							define(module.require, { configurable: false }, { main: this._main });
-
-							Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, moduleDirname, this, global);
-						}
-					}
-					else if (source instanceof Function)
-					{
-						// Resolved to initializer function.
-
-						define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), moduleDirname) });
-						define(module.require, { configurable: false }, { main: this._main });
-
-						var returnedExports = source(module, module.exports, module.require, module.id, moduleDirname, this, global);
-						if (typeof returnedExports !== 'undefined')
-							module.exports = returnedExports;
+							throw new Error('no suitable initializer for "' + name + '"');
 					}
 					else
 					{
-						// The module is unresolved.
+						// For non-source or fallback resolved modules use null as the new require
+						// root which makes the resolver use its own root.
+						this._extendModule(module, null);
 
-						if (this._fallback)
-							module.exports = this._fallback(module.id);
+						if (source instanceof Function)
+						{
+							// Resolved to initializer function.
+
+							var returnedExports = source(this, module, global);
+							if (typeof returnedExports !== 'undefined')
+								module.exports = returnedExports;
+						}
 						else
-							throw new Error('failed resolving "' + name + '"');
+						{
+							// The module is unresolved.
+
+							if (this.fallback)
+								module.exports = this.fallback(module.id);
+							else
+								throw new Error('failed resolving "' + name + '"');
+						}
 					}
 				}
 				catch (e)
 				{
-					this.resolver.uncache(module.id);
+					module.error = e;
 
-					if (this._main === module)
-						this._main = void 0;
+					if (this._mainModule === module)
+						this._mainModule = void 0;
 
 					throw e;
 				}
 			},
 			_initResolver: function(options)
 			{
-				var resolver;
-
-				if (options.resolver instanceof Resolver)
-					resolver = options.resolver;
-				else
-					resolver = new Resolver({
+				if (options.resolver instanceof Resolver || options.resolver instanceof Function)
+					this.resolver = options.resolver;
+				else if (!(this.resolver instanceof Resolver))
+					this.resolver = new Resolver({
 						log: options.log,
 						root: options.root,
 						prefix: options.prefix,
 						manifest: options.manifest,
 						get: options.get,
-						core: options.core,
-						jsonParse: options.jsonParse
+						core: options.core
 					});
 
-				define(this, { configurable: false, writable: false }, { resolver: resolver });
-
-				// Attempt to add Needy to the resolver as a core module. Silently fail if the
-				// "needy" core name is already registered.
-				dethrow(portable(resolver, 'addCore'), 'needy', function(module)
+				if (this.resolver.addCore instanceof Function)
 				{
-					module.exports = Needy;
-				});
-			},
-			_initJsonParse: function(jsonParse)
-			{
-				if (jsonParse instanceof Function)
-					this._jsonParse = jsonParse;
-				else if (typeof JSON !== 'undefined')
-					this._jsonParse = JSON.parse;
+					// Attempt to add Needy to the resolver as a core module. Silently fail if the
+					// "needy" core name is already registered.
+					dethrow(portable(this.resolver, 'addCore'), 'needy', function(module)
+					{
+						module.exports = Needy;
+					});
+				}
 			},
 			_initFallback: function(fallback)
 			{
 				if (fallback instanceof Function)
-					this._fallback = fallback;
-				else if (typeof require !== 'undefined' && require instanceof Function)
-					this._fallback = require;
+					this.fallback = fallback;
+				else if (!(this.fallback instanceof Function) && typeof require !== 'undefined' && require instanceof Function)
+					this.fallback = require;
 			},
-			_initBinaryInit: function(binaryInit)
+			_initInitializers: function(initializers)
 			{
-				if (binaryInit instanceof Function)
-					this._binaryInit = binaryInit;
-				else if (typeof require !== 'undefined' && require instanceof Function)
-					this._binaryInit = require;
+				if (!(initializers instanceof Object))
+					return;
+
+				for (var ext in initializers)
+					this.addInitializer(ext, initializers[ext]);
 			}
 		});
-
-		define(Needy.prototype, { configurable: false, writable: false }, { version: __version_updated_on_prepublish });
-		define(Needy, { configurable: false, writable: false }, { version: __version_updated_on_prepublish });
-
-		return define(Needy, null, {
+		define(Needy.prototype, { configurable: false, writable: false }, {
+			version: __version_updated_on_prepublish
+		});
+		define(Needy, { configurable: false, writable: false }, {
+			version: __version_updated_on_prepublish,
 			Resolver: Resolver,
-			Name: Name,
-			utils: define({}, null, {
+			Module: Module,
+			utils: define({}, { configurable: false, writable: false }, {
 				define: define,
 				dethrow: dethrow,
 				partial: partial,
 				portable: portable,
 				dirname: dirname,
 				joinPath: joinPath,
-				stripTrailingSlashes: stripTrailingSlashes,
 				isAbsPath: isAbsPath,
 				isValidPath: isValidPath,
 				defaultGetNode: defaultGetNode,
 				defaultGetBrowser: defaultGetBrowser
-			})
+			}),
 		});
+
+		return Needy;
 	}());
 
 	if (typeof module !== 'undefined' && module && module.exports)
