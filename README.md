@@ -147,11 +147,6 @@ Module resolution, logging, and core environment can be customized via an option
         // Do something with a log message. Defaults to ignoring log messages.
         log: console.log,
 
-        // Parse a JSON string. Defaults to JSON.parse if defined.
-        jsonParse: function(str) {
-            // Return decoded JSON or throw an exception.
-        },
-
         // Called when Needy can't resolve a module name. Defaults to a parent
         // require method if defined (by Node.js for example).
         fallback: function(name) {
@@ -186,7 +181,7 @@ Module resolution, logging, and core environment can be customized via an option
         // The dependencies directory name to look for when resolving
         // top-level module names. Defaults to "node_modules" for Node.js
         // compatibility.
-        directory: "node_modules",
+        prefix: "node_modules",
 
         // The manifest file name to look for in directory modules. Defaults
         // to "package.json" for Node.js compatibility.
@@ -200,11 +195,16 @@ Module resolution, logging, and core environment can be customized via an option
             // value or throw an exception.
         },
 
-        // Core module names mapped to their "real" require name. Top-level
-        // and relative core require names will be required relative to the
-        // startPath option.
+        // Core module names mapped to their "real" require name, or an
+        // initializeer function. Top-level module paths will be treated as
+        // relative (no tree traversal and prefix is not used). Relative core
+        // require names will be required relative to the startPath option.
         core: {
-            "process": "./core/process.js
+            "process": "./core/process.js,
+            "path": function(module, exports, require, __needy, global)
+            {
+                // Set or return exported API.
+            }
         }
     }
 
@@ -223,3 +223,71 @@ Needy was not really intended for production use and makes no real attempt to "f
 It's not a _totally_ unreasonable idea to use Needy in a production web application, given today's average network speeds, good caching policies, modern browser pipelining, and a little server support. However, for anything with a decent amount of traffic or a large code base, compiling is probably still the way to go.
 
 A secondary design goal was to make a module system that is as environment agnostic as possible. Needy uses only features from ECMAScript 3rd Edition or earlier, uses feature detection to provide environment specific implementations, and allows dependency injection in-case of unsupported environments.
+
+<script>
+// Little GitHub hackery for collapsible headers.
+void function() {
+    var readme = document.getElementById('readme'),
+        sections = [],
+        children = [],
+        section,
+        header,
+        i, max;
+    if (!readme)
+        return;
+    for (i = 0, max = readme.childNodes.length; i < max; ++i)
+    {
+        if (readme.childNodes[i].nodeType === 1 && /(^|\s*)markdown-body(\s*|$)/.test(readme.childNodes[i].className))
+        {
+            readme = readme.childNodes[i];
+            break;
+        }
+    }
+    if (i === max)
+        return;
+    for (i = 0, max = readme.childNodes.length; i < max; ++i)
+    {
+        if (readme.childNodes[i].nodeType === 1 && readme.childNodes[i].tagName.toLowerCase() === 'h2')
+        {
+            if (header && children.length)
+            {
+                sections.push({
+                    header: header,
+                    children: children
+                });
+
+                children = [];
+            }
+            header = readme.childNodes[i];
+        }
+        else if (header)
+        {
+            children.push(readme.childNodes[i]);
+        }
+    }
+    if (header && children.length)
+    {
+        sections.push({
+            header: header,
+            children: children
+        });
+    }
+    for (i = 0, max = sections.length; i < max; ++i)
+    {
+        void function(section)
+        {
+            var div = document.createElement('div');
+            div.className = 'github-section';
+            div.style.display = 'none';
+            section.header.style.cursor = 'pointer';
+            section.header.onclick = function(event)
+            {
+                div.style.display = div.style.display === 'block' ? 'none' : 'block';
+            };
+            for (var i = 0, max = section.children.length; i < max; ++i)
+                div.appendChild(section.children[i]);
+            readme.insertBefore(div, section.header.nextSibling);
+        }(sections[i])
+    }
+}();
+</script>
