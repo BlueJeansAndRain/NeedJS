@@ -3,8 +3,6 @@ Needy
 
 CommonJS modules for the browser, Node.js, or any other JavaScript environment.
 
-Needy is designed to be a subset of the Node.js module implementation so that targetting Needy will always result in Node.js and Node.js compilers being supported, but _not_ necessarily vise versa. Therefore, if you want to write code for both browser and Node.js use, target Needy features to ensure a common feature set.
-
 You "should" be able to use Needy in just about any JavaScript environment, either to add module support, or even to replace an existing module system. The `Needy` class will automatically be exported as a CommonJS or AMD module if possible. If `module.exports` and `define` are both undefined, then the `Needy` class will be added to the global namespace as a last resort.
 
 Features
@@ -18,7 +16,7 @@ Features
 * Can be used in the browser or as a command line utility to execute scripts or start a REPL.
 * Complies with the CommonJS modules specification (1.1.1).
     * Secure (sandbox) mode only. `module.paths` and `module.uri` will not be defined.
-* Has Node.js emulation.
+* Node.js emulation.
     * Node.js `__filename`, `__dirname`, and `global` variables are defined.
     * Node.js-like module resolution algorithm is implemented including "node_modules" sub-directory lookup, and directory modules with or without "package.json" files.
         * 404 warnings may be displayed in a browser's console due to module resolution. This is not a bug, it's just the only way for the browser to determine if a file exists. For production, compiling is recommended.
@@ -317,7 +315,7 @@ Here's a breakdown of how they all relate:
         * Custom module loaders.
     * Cons
         * For modules to be cross compatible with Node.js, they must be specially written or re-compiled.
-        * Circular dependencies result in a undefined module API.
+        * Circular dependencies result in an undefined module API.
         * No Node.js core module emulation.
         * No support for NPM module management. Modules in NPM can of course be written to work with RequireJS, but RequireJS does not support the directory scheme NPM uses.
         * No core module definition at all.
