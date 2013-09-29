@@ -40,7 +40,11 @@ Install via NPM.
 
     npm install needy
 
-It can also be installed as a command line application.
+FYI: Running the NPM test script will start a web server on localhost:8080. If you visit that address in your browser, you'll see an example of Needy running in the browser.
+
+    npm test
+
+It can also be installed globally as a command line application.
 
     npm install -g needy
 
@@ -126,24 +130,9 @@ Execute a script using the Needy module system instead of the Node.js module sys
 
     needy path/to/script.js arg1 arg2 ...
 
-You can even use a shebang to make executable JavaScript files automatically use Needy.
-
-Hypothetical "foo.js" file:
+You can even use a shebang to make executable JavaScript files automatically use Needy, at least on `nix operating systems.
 
     #!/usr/bin/env needy
-    if (typeof __needy !== 'undefined')
-        console.log('Needy :)');
-    else
-        console.log('Node.js :(');
-
-Shell:
-
-    chmod +x foo.js
-    ./foo.js
-
-Output:
-
-    Needy :)
 
 Options
 -------
