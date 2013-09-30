@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.7";
+	var __version_updated_on_prepublish = "0.1.8";
 
 	"use strict";
 	/* jshint evil: true */
@@ -926,7 +926,7 @@ void function()
 			Resolver: Resolver,
 			Module: Module,
 			utils: defineProperties({}, { configurable: false, writable: false }, {
-				defineProperties: define,
+				defineProperties: defineProperties,
 				setProperties: setProperties,
 				extendClass: extendClass,
 				dethrow: dethrow,
