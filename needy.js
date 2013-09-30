@@ -251,8 +251,18 @@ void function()
 			this._initCore(options.core);
 		}
 		define(Resolver.prototype, { configurable: false }, {
-			resolve: function(name, dirname)
+			resolve: function(module, dirname)
 			{
+				if (module instanceof Module)
+				{
+					if (this._cache[module.id])
+						throw new Error("cache collision");
+
+					this._cache[module.id] = module;
+
+					return module;
+				}
+
 				if (dirname != null)
 				{
 					if (!isValidPath(dirname, true))
@@ -265,7 +275,7 @@ void function()
 					dirname = this._root;
 				}
 
-				return this._resolve(dirname, name);
+				return this._resolve(dirname, module);
 			},
 			addCore: function(name, path)
 			{
@@ -279,20 +289,6 @@ void function()
 				}
 
 				this._addCore(name, path);
-
-				return this;
-			},
-			cache: function(name, module)
-			{
-				if (!(name instanceof Name))
-					name = new Name(name);
-
-				if (!(module instanceof Module))
-					throw new Error("only module instances can be cached");
-				if (this._cache[name.value])
-					throw new Error("cache name collision");
-
-				this._cache[name.value] = module;
 
 				return this;
 			},
