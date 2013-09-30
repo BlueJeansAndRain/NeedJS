@@ -187,6 +187,20 @@ Module resolution, logging, and core environment can be customized via an option
         }
     },
 
+    // Module names to require before the main module. These are not the same
+    // as core modules. Core modules adjust resolver behavior for specific top
+    // level module names, but do not actually cause modules to be loaded
+    // until something requires that top-level name. Prerequires are required
+    // immediately before the main module. This should be an array of module
+    // names and/or Needy.Module instances.
+    prerequire: [
+        "needy-nodecore",
+        new Module("silly-walks", function(module, needy, global)
+        {
+            // Set or return exported API.
+        })
+    ],
+
     // Throw exceptions when require cannot resolve a module. The CommonJS
     // spec states that exceptions should be thrown if a module cannot be
     // resolved. However, it seems like there might be cases when silently
@@ -201,8 +215,8 @@ Module resolution, logging, and core environment can be customized via an option
     //
 
     // The path prefix to use when requiring relative or top-level main
-    // module and core module names. Defaults in order to whichever of the
-    // following exists:__dirname, __filename directory part, module.uri
+    // module, prequire, and core module names. Defaults in order to whichever
+    // of the following exists:__dirname, __filename directory part, module.uri
     // directory part, window.location directory part, or "/". If this is
     // not an absolute (beginning with /) path, then it is appended to the
     // default startPath.
@@ -304,6 +318,7 @@ Class structure outline:
             * node = Function
         * _mainModule = Needy.Module
         * _initializers = Object
+        * _prerequire = Array
         * _allowUnresolved = Boolean
     * _methods_
         * constructor(options)
@@ -318,6 +333,8 @@ Class structure outline:
         * _initResolver(options)
         * _initFallback(options.fallback)
         * _initInitializers(options.initializers)
+        * _initPrerequire(options.prerequire)
+        * _initAllowUnresolved(options.allowUnresolved)
 
 You can write modules that work with the Needy instance that required them via the `__needy` global variable. Needy also automatically defines itself as a core module, so modules can get the Needy class by calling `require("needy")`.
 

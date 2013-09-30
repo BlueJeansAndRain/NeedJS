@@ -624,10 +624,12 @@ void function()
 				options = {};
 
 			this._initializers = {};
+			this._prerequire = [];
 
 			this._initResolver(options);
 			this._initFallback(options.fallback);
 			this._initInitializers(options.initializers);
+			this._initPrerequire(options.prerequire);
 			this._initAllowUnresolved(options.allowUnresolved);
 
 			if (typeof __needy !== 'undefined' && __needy instanceof Needy)
@@ -685,6 +687,7 @@ void function()
 			},
 			_mainModule: false,
 			_initializers: void 0,
+			_prerequire: void 0,
 			_allowUnresolved: false,
 			_require: function(dirname, name)
 			{
@@ -714,7 +717,16 @@ void function()
 				delete module.source;
 
 				if (!this._mainModule)
+				{
 					this._mainModule = module;
+
+					if (this._prerequire)
+					{
+						var i = this._prerequire.length;
+						while (i--)
+							this._require(null, this._prerequire[i]);
+					}
+				}
 
 				try
 				{
@@ -810,6 +822,18 @@ void function()
 
 				for (var ext in initializers)
 					this.addInitializer(ext, initializers[ext]);
+			},
+			_initPrerequire: function(prerequire)
+			{
+				if (!(prerequire instanceof Array))
+					return;
+
+				var i = prerequire.length;
+				while(i--)
+				{
+					if (typeof prerequire[i] === 'string' || prerequire[i] instanceof Module)
+						this._prerequire.push(prerequire[i]);
+				}
 			},
 			_initAllowUnresolved: function(allowUnresolved)
 			{
