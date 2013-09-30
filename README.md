@@ -187,6 +187,13 @@ Module resolution, logging, and core environment can be customized via an option
         }
     },
 
+    // Throw exceptions when require cannot resolve a module. The CommonJS
+    // spec states that exceptions should be thrown if a module cannot be
+    // resolved. However, it seems like there might be cases when silently
+    // failing is reasonable. Now exception will be thrown when a module
+    // cannot be found, if this option is true.
+    allowUnresolved: false,
+
     //
     // Options below this point are for the default Needy.Resolver
     // instance that is created when the resolver option is not set. They
@@ -297,6 +304,7 @@ Class structure outline:
             * node = Function
         * _mainModule = Needy.Module
         * _initializers = Object
+        * _allowUnresolved = Boolean
     * _methods_
         * constructor(options)
         * init(name)

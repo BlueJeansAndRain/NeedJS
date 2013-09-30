@@ -628,6 +628,7 @@ void function()
 			this._initResolver(options);
 			this._initFallback(options.fallback);
 			this._initInitializers(options.initializers);
+			this._initAllowUnresolved(options.allowUnresolved);
 
 			if (typeof __needy !== 'undefined' && __needy instanceof Needy)
 				define(this, { configurable: false, writable: false }, { parent: __needy });
@@ -684,6 +685,7 @@ void function()
 			},
 			_mainModule: false,
 			_initializers: void 0,
+			_allowUnresolved: false,
 			_require: function(dirname, name)
 			{
 				var module = dethrow(portable(this, this._resolve), dirname, name);
@@ -692,6 +694,8 @@ void function()
 
 				if (module.source != null)
 					this._moduleInit(module, name);
+				else if (module.error && !this._allowUnresolved)
+					throw module.error;
 
 				return module.exports;
 			},
@@ -706,9 +710,6 @@ void function()
 			},
 			_moduleInit: function(module, name)
 			{
-				if (module.error)
-					throw module.error;
-
 				var source = module.source;
 				delete module.source;
 
@@ -767,7 +768,8 @@ void function()
 					if (this._mainModule === module)
 						this._mainModule = void 0;
 
-					throw e;
+					if (!this._allowUnresolved)
+						throw e;
 				}
 			},
 			_initResolver: function(options)
@@ -808,6 +810,11 @@ void function()
 
 				for (var ext in initializers)
 					this.addInitializer(ext, initializers[ext]);
+			},
+			_initAllowUnresolved: function(allowUnresolved)
+			{
+				if (allowUnresolved != null)
+					this._allowUnresolved = !!allowUnresolved;
 			}
 		});
 		define(Needy.prototype, { configurable: false, writable: false }, {
