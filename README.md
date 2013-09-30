@@ -5,6 +5,63 @@ CommonJS modules for the browser, Node.js, or any other JavaScript environment.
 
 You "should" be able to use Needy in just about any JavaScript environment, either to add module support, or even to replace an existing module system. The `Needy` class will automatically be exported as a CommonJS or AMD module if possible. If `module.exports` and `define` are both undefined, then the `Needy` class will be added to the global namespace as a last resort.
 
+Overview
+--------
+
+Here's a highlevel example of a basic Needy webapp setup.
+
+Document root directory structure.
+
+    /index.html
+    /js/main.js
+    /js/node_modules/needy/
+    /js/node_modules/needy/...
+    /js/node_modules/needy-nodecore/
+    /js/node_modules/needy-nodecore/...
+
+/index.html
+```html
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Needy Example</title>
+    </head>
+    <body>
+    </body>
+</html>
+<script>
+// Set some Needy options...
+window.needy = {
+    // Resolve main, core, and prerequires relative to the "js" sub-directory.
+    root: 'js',
+    // Automatically require "needy-nodecore" which adds Node.js core modules support.
+    prerequire: ["needy-nodecore"],
+    // Output Needy log messages to the console.
+    log: function(message) { console.log(message); }
+};
+</script>
+<script src="node_modules/needy/needy.js" data-needy="./main.js">
+```
+
+_Notice that even though "main.js" is in the "js" sub-directory of the document root, the "data-needy" attribute of the "needy.js" script tag is does not include the "js" part because the "root" option makes the main module relative to "js"._
+
+/js/main.js
+```javascript
+// Node.js process emulation provided by needy-nodecore.
+var process = require("process");
+
+var span = document.createElement('span');
+span.appendChild(document.createTextNode(process.title + ' says "Hello world!"'));
+document.body.appendChild(span);
+```
+
+When this page is loaded, you should see something like...
+```
+browser says "Hello world!"
+```
+
+If you have your developer console open, you'll also see log messages about what Needy is doing behind the scenes, and probably some 404 warnings due to Needy trying different paths.
+
 Features
 --------
 
