@@ -300,8 +300,11 @@ Class structure outline:
     * _methods_
         * constructor(options)
         * init(name)
+        * require(name, dirname)
+        * resolve(name, dirname)
         * addInitializer(extension, init_function)
         * _require(dirname, name)
+        * _resolve(dirname, name)
         * _extendModule(module)
         * _moduleInit(module, name)
         * _initResolver(options)

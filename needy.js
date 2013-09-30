@@ -664,6 +664,14 @@ void function()
 
 				return this._mainModule;
 			},
+			require: function(name, dirname)
+			{
+				return this._require(dirname, name);
+			},
+			resolve: function(name, dirname)
+			{
+				return this._resolve(dirname, name);
+			},
 			addInitializer: function(ext, fn)
 			{
 				if (!(/^[a-z0-9]*$/i).test(ext))
@@ -678,7 +686,7 @@ void function()
 			_initializers: void 0,
 			_require: function(dirname, name)
 			{
-				var module = dethrow(this.resolver.resolve ? portable(this.resolver, this.resolver.resolve) : portable(this, this.resolver), name, dirname);
+				var module = dethrow(portable(this, this._resolve), dirname, name);
 				if (!(module instanceof Module))
 					module = new Module(name);
 
@@ -686,6 +694,10 @@ void function()
 					this._moduleInit(module, name);
 
 				return module.exports;
+			},
+			_resolve: function(dirname, name)
+			{
+				return (this.resolver.resolve ? portable(this.resolver, this.resolver.resolve) : portable(this, this.resolver))(name, dirname);
 			},
 			_extendModule: function(module, dirname)
 			{
