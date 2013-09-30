@@ -1,4 +1,5 @@
 "use strict";
+/* globals __needy */
 
 function test(message, callback)
 {
@@ -22,7 +23,11 @@ window.ui.logger('Hello World!');
 
 test('Requiring "needy" core module.', function()
 {
-	require('needy');
+	var Needy = require('needy');
+	if (__needy instanceof Needy)
+		window.ui.logger('__needy is an instance of require("needy")');
+	else
+		throw new Error('__needy is not an instance of require("needy")');
 });
 
 test('Requiring "core1" core module.', function()

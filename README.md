@@ -180,7 +180,7 @@ Module resolution, logging, and core environment can be customized via an option
     // unrecognized extension then the default initializer for .js files
     // will be used.
     initializers: {
-        coffee: function(needy, module, source, dirname, global)
+        coffee: function(module, source, dirname, needy, global)
         {
             // An initalizer for .coffee files. Parse the source and set
             // the exports.
@@ -223,7 +223,7 @@ Module resolution, logging, and core environment can be customized via an option
     // required relative to the root option.
     core: {
         "process": "./core/process.js",
-        "path": function(needy, module, global)
+        "path": function(module, needy, global)
         {
             // Set or return exported API.
         }

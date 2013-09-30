@@ -30,7 +30,7 @@
 			}
 		},
 		initializers: {
-			js: function(needy, module, source, dirname, global, defaults) {
+			js: function(module, source, dirname, needy, global) {
 				needy.defaultInitializers.js.apply(null, arguments);
 			}
 		},

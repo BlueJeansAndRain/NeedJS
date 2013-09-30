@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.1";
+	var __version_updated_on_prepublish = "0.1.2";
 
 	"use strict";
 	/* jshint evil: true */
@@ -640,18 +640,18 @@ void function()
 			resolver: void 0,
 			fallback: false,
 			defaultInitializers: {
-				js: function(needy, module, source, dirname, global)
+				js: function(module, source, dirname, needy, global)
 				{
 					Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, dirname, needy, global);
 				},
-				json: function(needy, module, source)
+				json: function(module, source)
 				{
 					if (typeof JSON.parse === 'undefined')
 						throw new Error('JSON modules are not supported');
 
 					module.exports = JSON.parse(source);
 				},
-				node: function(needy, module, source)
+				node: function(module, source)
 				{
 					if (typeof require === 'undefined')
 						throw new Error('binary modules (.node) are not supported');
@@ -719,11 +719,11 @@ void function()
 						this._extendModule(module, moduleDirname);
 
 						if (this._initializers.hasOwnProperty(ext))
-							this._initializers[ext](this, module, source, moduleDirname, global);
+							this._initializers[ext](module, source, moduleDirname, this, global);
 						else if (this.defaultInitializers.hasOwnProperty(ext))
-							this.defaultInitializers[ext](this, module, source, moduleDirname);
+							this.defaultInitializers[ext](module, source, moduleDirname, this, global);
 						else if (this.defaultInitializers.hasOwnProperty('js'))
-							this.defaultInitializers.js(this, module, source, moduleDirname);
+							this.defaultInitializers.js(module, source, moduleDirname, this, global);
 						else
 							throw new Error('no suitable initializer for "' + name + '"');
 					}
@@ -737,7 +737,7 @@ void function()
 						{
 							// Resolved to initializer function.
 
-							var returnedExports = source(this, module, global);
+							var returnedExports = source(module, this, global);
 							if (typeof returnedExports !== 'undefined')
 								module.exports = returnedExports;
 						}
