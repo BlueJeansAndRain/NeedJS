@@ -255,7 +255,7 @@ Module resolution, logging, and core environment can be customized via an option
 Advanced API
 ------------
 
-In addition to setting options, you can extend Needy, Needy.Resolver, or Needy.Module.
+In addition to setting options, you can extend Needy, Needy.Resolver, or Needy.Module. They all have a static method `extend` for easier derived class definition.
 
 Class structure outline:
 
@@ -263,6 +263,7 @@ Class structure outline:
     * _static_
         * `Resolver`
             * _properties_
+                * options = Object
                 * _cache = Object
                 * _manifestCache = Object
                 * _log = Function
@@ -273,9 +274,10 @@ Class structure outline:
                 * _core = Object
             * _methods_
                 * constructor(options)
+                * constructor(Resolver)
                 * resolve(name, dirname)
+                * resolve(module)
                 * addCore(name, core)
-                * cache(name, module)
                 * uncache(name)
                 * _resolve(dirname, name)
                 * _initLog(options.log)
@@ -285,30 +287,39 @@ Class structure outline:
                 * _initGet(options.get)
                 * _initCore(options.core)
                 * _getManifestMain(directory)
+                * _addCore(name, core)
                 * _load(path)
                 * _loadFile(name)
                 * _loadDirectory(name)
                 * _loadNonTop(name)
                 * _loadTop(dirname, name)
+            * _static\_methods_
+                * extend(childConstructor, prototype...)
         * `Module`
             * _properties_
                 * id = String
-                * source = String | Function | false
+                * source = String | Function | false,
+                * exports
             * _methods_
                 * constructor(id, source)
+            * _static\_methods_
+                * extend(childConstructor, prototype...)
         * version = String
         * utils = Object
-            * define(obj, options, properties)
-            * dethrow(fn, ...)
-            * partial(fn, ...)
+            * defineProperties(target, options, source)
+            * setProperties(target, source...)
+            * extendClass(parent, childConstructor, prototype...)
+            * dethrow(fn, arg...)
+            * partial(fn, arg...)
             * portable(obj, fn)
             * dirname(path)
-            * joinPath(...)
+            * joinPath(path...)
             * isAbsPath(path)
             * isValidPath(path)
             * defaultGetNode(path)
             * defaultGetBrowser(path)
     * _properties_
+        * options = Object
         * parent = Needy | null
         * resolver = Function | Needy.Resolver
         * fallback = Function | false
@@ -322,6 +333,7 @@ Class structure outline:
         * _allowUnresolved = Boolean
     * _methods_
         * constructor(options)
+        * constructor(Needy)
         * init(name)
         * require(name, dirname)
         * resolve(name, dirname)
@@ -335,6 +347,8 @@ Class structure outline:
         * _initInitializers(options.initializers)
         * _initPrerequire(options.prerequire)
         * _initAllowUnresolved(options.allowUnresolved)
+    * _static\_methods_
+        * extend(childConstructor, prototype...)
 
 You can write modules that work with the Needy instance that required them via the `__needy` global variable. Needy also automatically defines itself as a core module, so modules can get the Needy class by calling `require("needy")`.
 

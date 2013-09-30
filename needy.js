@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.2";
+	var __version_updated_on_prepublish = "0.1.7";
 
 	"use strict";
 	/* jshint evil: true */
@@ -20,7 +20,7 @@ void function()
 		};
 
 		// Define multiple properties with similar configuration values.
-		function define(target, options, source)
+		function defineProperties(target, options, source)
 		{
 			if (options == null)
 				options = {};
@@ -39,6 +39,48 @@ void function()
 			}
 
 			return target;
+		}
+
+		// Copy non-null properties from all sources, to the target
+		function setProperties(target/*, source, ...*/)
+		{
+			var i = 0,
+				max = arguments.length,
+				source, prop;
+
+			for (; i < max; ++i)
+			{
+				source = arguments[i];
+				if (!(source instanceof Object))
+					continue;
+
+				for (prop in source)
+				{
+					if (source[prop] == null)
+						continue;
+
+					target[prop] = source[prop];
+				}
+			}
+
+			return target;
+		}
+
+		// Simple JavaScript inheritance. Nothing fancy.
+		function extendClass(parent, constructor)
+		{
+			var anonymous = function() {};
+			anonymous.prototype = parent.prototype;
+			constructor.prototype = new anonymous();
+			constructor.constructor = constructor;
+
+			defineProperties(constructor, { configurable: false }, {
+				extend: partial(extendClass, constructor)
+			});
+
+			setProperties.apply(null, [constructor.prototype], Array.prototype.slice.call(arguments, 2));
+
+			return constructor;
 		}
 
 		// Call a function ignoring any exceptions that it throws.
@@ -199,16 +241,19 @@ void function()
 					throw new Error("invalid module name");
 			}
 
-			define(this, { configurable: false, writable: false }, {
+			defineProperties(this, { configurable: false, writable: false }, {
 				value: value,
 				topLevel: topLevel
 			});
 		}
-		define(Name.prototype, { configurable: false }, {
+		defineProperties(Name.prototype, { configurable: false }, {
 			toString: function()
 			{
 				return this.value;
 			}
+		});
+		defineProperties(Name, { configurable: false }, {
+			extend: partial(extendClass, Name)
 		});
 
 		function Module(id, source)
@@ -219,8 +264,8 @@ void function()
 			if (id instanceof Name)
 				id = id.value;
 
-			define(this, { configurable: false, writable: false }, { id: id });
-			define(this, { configurable: false }, { exports: {} });
+			defineProperties(this, { configurable: false, writable: false }, { id: id });
+			defineProperties(this, { configurable: false }, { exports: {} });
 
 			if (typeof source === 'string')
 				this.source = source.replace(/^#!.*/, '');
@@ -229,6 +274,9 @@ void function()
 			else
 				this.source = false;
 		}
+		defineProperties(Module, { configurable: false }, {
+			extend: partial(extendClass, Module)
+		});
 
 		// See: http://nodejs.org/api/modules.html#modules_all_together
 		function Resolver(options)
@@ -236,21 +284,35 @@ void function()
 			if (!(this instanceof Resolver))
 				return new Resolver(options);
 
-			if (!(options instanceof Object))
-				options = {};
+			if (options instanceof Resolver)
+			{
+				this._cache = options._cache;
+				this._manifestCache = options._manifestCache;
+				this._core = options._core;
+				this._log = options._log;
+				this._root = options._root;
+				this._prefix = options._prefix;
+				this._manifest = options._manifest;
+				this._get = options._get;
+			}
+			else
+			{
+				options = this.options = setProperties({}, this.options, options);
 
-			this._cache = {};
-			this._manifestCache = {};
-			this._core = {};
+				this._cache = {};
+				this._manifestCache = {};
+				this._core = {};
 
-			this._initLog(options.log);
-			this._initRoot(options.root);
-			this._initPrefix(options.prefix);
-			this._initManifest(options.manifest);
-			this._initGet(options.get);
-			this._initCore(options.core);
+				this._initLog(options.log);
+				this._initRoot(options.root);
+				this._initPrefix(options.prefix);
+				this._initManifest(options.manifest);
+				this._initGet(options.get);
+				this._initCore(options.core);
+			}
 		}
-		define(Resolver.prototype, { configurable: false }, {
+		defineProperties(Resolver.prototype, { configurable: false }, {
+			options: void 0,
 			resolve: function(module, dirname)
 			{
 				if (module instanceof Module)
@@ -614,28 +676,43 @@ void function()
 				return false;
 			}
 		});
+		defineProperties(Resolver, { configurable: false }, {
+			extend: partial(extendClass, Resolver)
+		});
 
 		function Needy(options)
 		{
 			if (!(this instanceof Needy))
 				return new Needy(options);
 
-			if (!(options instanceof Object))
-				options = {};
+			if (options instanceof Needy)
+			{
+				this.resolver = options.resolver;
+				this.fallback = options.fallback;
+				this._initializers = options._initializers;
+				this._allowUnresolved = options._allowUnresolved;
 
-			this._initializers = {};
-			this._prerequire = [];
+				defineProperties(this, { configurable: false, writable: false }, { parent: options });
+			}
+			else
+			{
+				options = this.options = setProperties({}, this.options, options);
 
-			this._initResolver(options);
-			this._initFallback(options.fallback);
-			this._initInitializers(options.initializers);
-			this._initPrerequire(options.prerequire);
-			this._initAllowUnresolved(options.allowUnresolved);
+				this._initializers = {};
+				this._prerequire = [];
 
-			if (typeof __needy !== 'undefined' && __needy instanceof Needy)
-				define(this, { configurable: false, writable: false }, { parent: __needy });
+				this._initResolver(options);
+				this._initFallback(options.fallback);
+				this._initInitializers(options.initializers);
+				this._initPrerequire(options.prerequire);
+				this._initAllowUnresolved(options.allowUnresolved);
+
+				if (typeof __needy !== 'undefined' && __needy instanceof Needy)
+					defineProperties(this, { configurable: false, writable: false }, { parent: __needy });
+			}
 		}
-		define(Needy.prototype, { configurable: false }, {
+		defineProperties(Needy.prototype, { configurable: false }, {
+			options: void 0,
 			resolver: void 0,
 			fallback: false,
 			defaultInitializers: {
@@ -708,8 +785,8 @@ void function()
 			},
 			_extendModule: function(module, dirname)
 			{
-				define(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), dirname) });
-				define(module.require, { configurable: false }, { main: this._mainModule });
+				defineProperties(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), dirname) });
+				defineProperties(module.require, { configurable: false }, { main: this._mainModule });
 			},
 			_moduleInit: function(module, name)
 			{
@@ -841,15 +918,17 @@ void function()
 					this._allowUnresolved = !!allowUnresolved;
 			}
 		});
-		define(Needy.prototype, { configurable: false, writable: false }, {
+		defineProperties(Needy.prototype, { configurable: false, writable: false }, {
 			version: __version_updated_on_prepublish
 		});
-		define(Needy, { configurable: false, writable: false }, {
+		defineProperties(Needy, { configurable: false, writable: false }, {
 			version: __version_updated_on_prepublish,
 			Resolver: Resolver,
 			Module: Module,
-			utils: define({}, { configurable: false, writable: false }, {
-				define: define,
+			utils: defineProperties({}, { configurable: false, writable: false }, {
+				defineProperties: define,
+				setProperties: setProperties,
+				extendClass: extendClass,
 				dethrow: dethrow,
 				partial: partial,
 				portable: portable,
@@ -860,6 +939,9 @@ void function()
 				defaultGetNode: defaultGetNode,
 				defaultGetBrowser: defaultGetBrowser
 			}),
+		});
+		defineProperties(Needy, { configurable: false }, {
+			extend: partial(extendClass, Needy)
 		});
 
 		return Needy;
