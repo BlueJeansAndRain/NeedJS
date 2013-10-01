@@ -28,16 +28,14 @@ http.createServer(function(req, res)
 console.log("Listening on port " + port);
 console.log("Press Ctrl+C to quit");
 
+function doExit()
+{
+	if (!process.stdout.write("\rDone.\n"))
+		process.stdout.on('drain', process.exit);
+	else
+		process.exit();
+}
+
 process
-	.on('SIGTERM', function()
-	{
-		process.exit();
-	})
-	.on('SIGINT', function()
-	{
-		process.exit();
-	})
-	.on('exit', function()
-	{
-		console.log("\rDone.");
-	});
+	.on('SIGTERM', doExit)
+	.on('SIGINT', doExit);

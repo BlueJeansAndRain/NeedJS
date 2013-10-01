@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.9";
+	var __version_updated_on_prepublish = "0.1.10";
 
 	"use strict";
 	/* jshint evil: true */
@@ -289,7 +289,8 @@ void function()
 				this._cache = options._cache;
 				this._manifestCache = options._manifestCache;
 				this._core = options._core;
-				this._log = options._log;
+				this._onLog = options._onLog;
+				this._useConsole = options._useConsole;
 				this._root = options._root;
 				this._prefix = options._prefix;
 				this._manifest = options._manifest;
@@ -303,6 +304,7 @@ void function()
 				this._manifestCache = {};
 				this._core = {};
 
+				this._initConsole(options.console);
 				this._initLog(options.log);
 				this._initRoot(options.root);
 				this._initPrefix(options.prefix);
@@ -365,7 +367,8 @@ void function()
 			},
 			_cache: void 0,
 			_manifestCache: void 0,
-			_log: function() {},
+			_useConsole: false,
+			_onLog: void 0,
 			_root: '/',
 			_prefix: 'node_modules',
 			_manifest: 'package.json',
@@ -383,9 +386,9 @@ void function()
 				else
 					this._log('Resolving absolute "' + name.value + '"');
 
-				var module;
-
 				this._log('  Trying "' + name + '" in cache');
+
+				var module;
 
 				if (this._cache[name.value])
 				{
@@ -423,10 +426,23 @@ void function()
 
 				return module;
 			},
+			_log: function(message)
+			{
+				if (this._useConsole && typeof console !== 'undefined' && typeof console.log !== 'undefined')
+					console.log(message);
+
+				if (this._onLog)
+					this._onLog(message);
+			},
+			_initConsole: function(console)
+			{
+				if (console != null)
+					this._useConsole = !!console;
+			},
 			_initLog: function(log)
 			{
 				if (log instanceof Function)
-					this._log = log;
+					this._onLog = log;
 			},
 			_initRoot: function(root)
 			{
@@ -706,6 +722,8 @@ void function()
 				this._initInitializers(options.initializers);
 				this._initPrerequire(options.prerequire);
 				this._initAllowUnresolved(options.allowUnresolved);
+				this._initConsole(options.console);
+				this._initConsoleGroup(options.consoleGroup);
 
 				if (typeof __needy !== 'undefined' && __needy instanceof Needy)
 					defineProperties(this, { configurable: false, writable: false }, { parent: __needy });
@@ -750,7 +768,17 @@ void function()
 			},
 			resolve: function(name, dirname)
 			{
-				return this._resolve(dirname, name);
+				var groupKey = this._beginConsoleGroup(dirname, name);
+
+				try
+				{
+					return this._resolve(dirname, name);
+				}
+				finally
+				{
+					if (groupKey)
+						console.groupEnd(groupKey);
+				}
 			},
 			addInitializer: function(ext, fn)
 			{
@@ -766,15 +794,31 @@ void function()
 			_initializers: void 0,
 			_prerequire: void 0,
 			_allowUnresolved: false,
+			_useConsole: false,
+			_useConsoleGroup: false,
+			_beginConsoleGroup: function(dirname, name)
+			{
+				if (this._useConsoleGroup && typeof console !== 'undefined' && typeof console.group !== 'undefined')
+				{
+					var groupKey = (dirname || "[root]") + ':' + name;
+					if (this._useConsoleGroup === 'collapse' && typeof console.groupCollapsed !== 'undefined')
+						console.groupCollapsed(groupKey);
+					else
+						console.group(groupKey);
+
+					return groupKey;
+				}
+				else
+				{
+					return false;
+				}
+			},
 			_require: function(dirname, name)
 			{
-				// The console.group and console.groupEnd will build a
-				// collapsable tree of dependencies. This can be nice to
-				// collapse a group of 404s while looking for the real error.
-				if (console.group) {
-					console.group(dirname+":"+name);
-				}
-				try {
+				var groupKey = this._beginConsoleGroup(dirname, name);
+
+				try
+				{
 					var module = dethrow(portable(this, this._resolve), dirname, name);
 					if (!(module instanceof Module))
 						module = new Module(name);
@@ -785,12 +829,11 @@ void function()
 						throw module.error;
 
 					return module.exports;
-
-					// Since there isn't a catch exceptions will pass through
-				} finally {
-					if (console.group) {
-						console.groupEnd(dirname+":"+name);
-					}
+				}
+				finally
+				{
+					if (groupKey)
+						console.groupEnd(groupKey);
 				}
 			},
 			_resolve: function(dirname, name)
@@ -880,14 +923,7 @@ void function()
 				if (options.resolver instanceof Resolver || options.resolver instanceof Function)
 					this.resolver = options.resolver;
 				else if (!(this.resolver instanceof Resolver))
-					this.resolver = new Resolver({
-						log: options.log,
-						root: options.root,
-						prefix: options.prefix,
-						manifest: options.manifest,
-						get: options.get,
-						core: options.core
-					});
+					this.resolver = new Resolver(options);
 
 				if (this.resolver.addCore instanceof Function)
 				{
@@ -930,6 +966,16 @@ void function()
 			{
 				if (allowUnresolved != null)
 					this._allowUnresolved = !!allowUnresolved;
+			},
+			_initConsole: function(console)
+			{
+				if (console != null)
+					this._useConsole = !!console;
+			},
+			_initConsoleGroup: function(consoleGroup)
+			{
+				if (consoleGroup != null)
+					this._useConsoleGroup = consoleGroup;
 			}
 		});
 		defineProperties(Needy.prototype, { configurable: false, writable: false }, {

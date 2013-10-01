@@ -212,25 +212,12 @@ Module resolution, logging, and core environment can be customized via an option
     // require a top-level or relative to the startPath option.
     main: "main",
 
-    // Do something with a log message. Defaults to ignoring log messages.
-    log: console.log,
-
     // Called when Needy can't resolve a module name. Defaults to an
     // existing require method if one is defined in the scope that
     // required/included Needy.
     fallback: function(name) {
         // Return module exports or throw an exception.
     },
-
-    // Set a custom name resolution implementation. Defaults to a
-    // Needy.Resolver instance created with the options passed to the Needy
-    // constructor. This can be an object with a "resolve" method or a
-    // function. The method/function will be passed a module name and the
-    // directory of the module that is requiring it. It should return a
-    // Needy.Module instance or derivative. If it cannot resolve the
-    // module name then it can return false, return a module with source
-    // property set to false, or throw an exception.
-    resolver: new Needy.Resolver(options),
 
     // Define initializers for specific file extensions. There are default
     // initializers for .js, .json, and .node files. If a file has an
@@ -264,6 +251,31 @@ Module resolution, logging, and core environment can be customized via an option
     // failing is reasonable. Now exception will be thrown when a module
     // cannot be found, if this option is true.
     allowUnresolved: false,
+
+    // Capture log messages from the Needy.Resolver. Defaults to ignoring log
+    // messages. Also used by the default Needy.Resolver instance.
+    log: function(message)
+    {
+        Do something with a log message.
+    },
+
+    // Whether or not to print log messages to console.log. Defaults to not
+    // using console.log.
+    console: false,
+
+    // Whether or not to group console messages by require. Defaults to no
+    // grouping. Can be true, false, or "collapse".
+    consoleGroup: false,
+
+    // Set a custom name resolution implementation. Defaults to a new
+    // Needy.Resolver instance created with the options passed to the Needy
+    // constructor. This can be an object with a "resolve" method or a
+    // function. The method/function will be passed a module name and the
+    // directory of the module that is requiring it. It should return a
+    // Needy.Module instance or derivative. If it cannot resolve the
+    // module name then it can return false, return a module with source
+    // property set to false, or throw an exception.
+    resolver: new Needy.Resolver(options),
 
     //
     // Options below this point are for the default Needy.Resolver
@@ -323,7 +335,8 @@ Class structure outline:
                 * options = Object
                 * _cache = Object
                 * _manifestCache = Object
-                * _log = Function
+                * _onlog = Function
+                * _useConsole = Boolean
                 * _root = String
                 * _prefix = String
                 * _manifest = String
@@ -338,6 +351,7 @@ Class structure outline:
                 * uncache(name)
                 * _resolve(dirname, name)
                 * _initLog(options.log)
+                * _initConsole(options.console)
                 * _initRoot(options.root)
                 * _initPrefix(options.prefix)
                 * _initManifest(options.manifest)
@@ -388,6 +402,8 @@ Class structure outline:
         * _initializers = Object
         * _prerequire = Array
         * _allowUnresolved = Boolean
+        * _useConsole = Boolean
+        * _useConsoleGroup = Boolean | "collapse"
     * _methods_
         * constructor(options)
         * constructor(Needy)
@@ -395,6 +411,7 @@ Class structure outline:
         * require(name, dirname)
         * resolve(name, dirname)
         * addInitializer(extension, init_function)
+        * _beginConsoleGroup(dirname, name)
         * _require(dirname, name)
         * _resolve(dirname, name)
         * _extendModule(module)
@@ -404,6 +421,8 @@ Class structure outline:
         * _initInitializers(options.initializers)
         * _initPrerequire(options.prerequire)
         * _initAllowUnresolved(options.allowUnresolved)
+        * _initConsole(options.console)
+        * _initConsoleGroup(options.consoleGroup)
     * _static\_methods_
         * extend(childConstructor, prototype...)
 

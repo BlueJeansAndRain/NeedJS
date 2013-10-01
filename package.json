@@ -1,13 +1,12 @@
 {
   "name": "needy",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "CommonJS modules for the browser, Node.js, or any other JavaScript environment.",
   "main": "./needy.js",
   "bin": {
     "needy": "./cli.js"
   },
   "scripts": {
-    "prepublish": "node ./scripts/prepublish.js",
     "test": "node ./scripts/test.js"
   },
   "config": {
