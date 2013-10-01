@@ -208,8 +208,7 @@ Module resolution, logging, and core environment can be customized via an option
 
 ```javascript
 {
-    // The main module name to require. The default resolve method will
-    // require a top-level or relative to the startPath option.
+    // The main module name to require. When needy is required via HTML script tag, this will can overridden by a "data-needy" attribute.
     main: "main",
 
     // Called when Needy can't resolve a module name. Defaults to an
