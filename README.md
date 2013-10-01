@@ -252,13 +252,6 @@ Module resolution, logging, and core environment can be customized via an option
     // cannot be found, if this option is true.
     allowUnresolved: false,
 
-    // Capture log messages from the Needy.Resolver. Defaults to ignoring log
-    // messages. Also used by the default Needy.Resolver instance.
-    log: function(message)
-    {
-        Do something with a log message.
-    },
-
     // Whether or not to print log messages to console.log. Defaults to not
     // using console.log.
     console: false,
@@ -282,6 +275,13 @@ Module resolution, logging, and core environment can be customized via an option
     // instance that is created when the resolver option is not set. They
     // have no effect if a custom resolver is used._
     //
+
+    // Capture log messages from the Needy.Resolver. Defaults to ignoring log
+    // messages.
+    log: function(message)
+    {
+        Do something with a log message.
+    },
 
     // The path prefix to use when requiring relative or top-level main
     // module, prequire, and core module names. Defaults in order to whichever
