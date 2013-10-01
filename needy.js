@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.13";
+	var __version_updated_on_prepublish = "0.1.14";
 
 	"use strict";
 	/* jshint evil: true */
@@ -792,13 +792,13 @@ void function()
 				if (this._mainModule)
 					throw new Error("already initialized");
 
-				this._log('Needy v' + this.version);
-
 				if (!(this.options instanceof Object))
 					this.options = {};
 
 				this._group('Needy Initialization', null, function()
 				{
+					this._log('Needy v' + this.version);
+
 					if (typeof __needy !== 'undefined' && __needy instanceof Needy)
 					{
 						this._log('Parent Needy instance detected');
