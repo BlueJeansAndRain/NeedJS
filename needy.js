@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.14";
+	var __version_updated_on_prepublish = "0.1.15";
 
 	"use strict";
 	/* jshint evil: true */
@@ -882,8 +882,8 @@ void function()
 					{
 						this._group('Prerequiring modules', null, function()
 						{
-							var i = this._prerequire.length;
-							while (i--)
+							var i = 0, max = this._prerequire.length;
+							for (; i < max; ++i)
 								this._require(null, this._prerequire[i]);
 						});
 					}
@@ -1009,8 +1009,8 @@ void function()
 				if (!(prerequire instanceof Array))
 					return;
 
-				var i = prerequire.length;
-				while(i--)
+				var i = 0, max = prerequire.length;
+				for (; i < max; ++i)
 				{
 					if (typeof prerequire[i] === 'string')
 					{
