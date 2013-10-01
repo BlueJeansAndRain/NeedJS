@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.12";
+	var __version_updated_on_prepublish = "0.1.13";
 
 	"use strict";
 	/* jshint evil: true */
@@ -791,6 +791,8 @@ void function()
 			{
 				if (this._mainModule)
 					throw new Error("already initialized");
+
+				this._log('Needy v' + this.version);
 
 				if (!(this.options instanceof Object))
 					this.options = {};
