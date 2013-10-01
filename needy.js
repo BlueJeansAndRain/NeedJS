@@ -768,16 +768,30 @@ void function()
 			_allowUnresolved: false,
 			_require: function(dirname, name)
 			{
-				var module = dethrow(portable(this, this._resolve), dirname, name);
-				if (!(module instanceof Module))
-					module = new Module(name);
+				// The console.group and console.groupEnd will build a
+				// collapsable tree of dependencies. This can be nice to
+				// collapse a group of 404s while looking for the real error.
+				if (console.group) {
+					console.group(dirname+":"+name);
+				}
+				try {
+					var module = dethrow(portable(this, this._resolve), dirname, name);
+					if (!(module instanceof Module))
+						module = new Module(name);
 
-				if (module.source != null)
-					this._moduleInit(module, name);
-				else if (module.error && !this._allowUnresolved)
-					throw module.error;
+					if (module.source != null)
+						this._moduleInit(module, name);
+					else if (module.error && !this._allowUnresolved)
+						throw module.error;
 
-				return module.exports;
+					return module.exports;
+
+					// Since there isn't a catch exceptions will pass through
+				} finally {
+					if (console.group) {
+						console.groupEnd(dirname+":"+name);
+					}
+				}
 			},
 			_resolve: function(dirname, name)
 			{
