@@ -86,7 +86,7 @@ Features
     * Change the top-level prefix (node_modules) and manifest (package.json) names.
     * Define a custom method for getting source code from a path.
     * Completely redefine module resolution behavior.
-* Under 5kB minified and gzipped.
+* Under 6kB minified and gzipped.
 
 Installation
 ------------
@@ -252,6 +252,13 @@ Module resolution, logging, and core environment can be customized via an option
     // cannot be found, if this option is true.
     allowUnresolved: false,
 
+    // Capture log messages from the Needy.Resolver. Defaults to ignoring log
+    // messages.
+    log: function(message)
+    {
+        Do something with a log message.
+    },
+
     // Whether or not to print log messages to console.log. Defaults to not
     // using console.log.
     console: false,
@@ -275,13 +282,6 @@ Module resolution, logging, and core environment can be customized via an option
     // instance that is created when the resolver option is not set. They
     // have no effect if a custom resolver is used._
     //
-
-    // Capture log messages from the Needy.Resolver. Defaults to ignoring log
-    // messages.
-    log: function(message)
-    {
-        Do something with a log message.
-    },
 
     // The path prefix to use when requiring relative or top-level main
     // module, prequire, and core module names. Defaults in order to whichever
@@ -310,7 +310,8 @@ Module resolution, logging, and core environment can be customized via an option
 
     // Core module names mapped to their "real" require name or an
     // initializer function. Top-level and relative module paths will be
-    // required relative to the root option.
+    // required relative to the root option. The resolver must define an
+    // addCore() method to handle this option.
     core: {
         "process": "./core/process.js",
         "path": function(module, needy, global)
@@ -335,8 +336,6 @@ Class structure outline:
                 * options = Object
                 * _cache = Object
                 * _manifestCache = Object
-                * _onlog = Function
-                * _useConsole = Boolean
                 * _root = String
                 * _prefix = String
                 * _manifest = String
@@ -349,14 +348,16 @@ Class structure outline:
                 * resolve(module)
                 * addCore(name, core)
                 * uncache(name)
+                * setLog(callback)
+                * setConsole(enabled)
+                * setConsoleGroup(enabled)
+                * _log(message)
+                * _group(message, submessage, callback, args...)
                 * _resolve(dirname, name)
-                * _initLog(options.log)
-                * _initConsole(options.console)
                 * _initRoot(options.root)
                 * _initPrefix(options.prefix)
                 * _initManifest(options.manifest)
                 * _initGet(options.get)
-                * _initCore(options.core)
                 * _getManifestMain(directory)
                 * _addCore(name, core)
                 * _load(path)
@@ -402,8 +403,6 @@ Class structure outline:
         * _initializers = Object
         * _prerequire = Array
         * _allowUnresolved = Boolean
-        * _useConsole = Boolean
-        * _useConsoleGroup = Boolean | "collapse"
     * _methods_
         * constructor(options)
         * constructor(Needy)
@@ -411,18 +410,20 @@ Class structure outline:
         * require(name, dirname)
         * resolve(name, dirname)
         * addInitializer(extension, init_function)
-        * _beginConsoleGroup(dirname, name)
+        * setLog(callback)
+        * setConsole(enabled)
+        * setConsoleGroup(enabled)
+        * _log(message)
+        * _group(message, submessage, callback, args...)
         * _require(dirname, name)
         * _resolve(dirname, name)
         * _extendModule(module)
         * _moduleInit(module, name)
-        * _initResolver(options)
         * _initFallback(options.fallback)
+        * _initAllowUnresolved(options.allowUnresolved)
+        * _initResolver(options)
         * _initInitializers(options.initializers)
         * _initPrerequire(options.prerequire)
-        * _initAllowUnresolved(options.allowUnresolved)
-        * _initConsole(options.console)
-        * _initConsoleGroup(options.consoleGroup)
     * _static\_methods_
         * extend(childConstructor, prototype...)
 

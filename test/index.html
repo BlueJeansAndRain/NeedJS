@@ -30,9 +30,7 @@
 			}
 		},
 		initializers: {
-			js: function(module, source, dirname, needy, global) {
-				needy.defaultInitializers.js.apply(null, arguments);
-			}
+			coffee: function() { throw new Error("Coffee scripts are not supported."); }
 		},
 		log: function(message)
 		{

@@ -1,6 +1,6 @@
 void function()
 {
-	var __version_updated_on_prepublish = "0.1.11";
+	var __version_updated_on_prepublish = "0.1.12";
 
 	"use strict";
 	/* jshint evil: true */
@@ -20,22 +20,33 @@ void function()
 		};
 
 		// Define multiple properties with similar configuration values.
-		function defineProperties(target, options, source)
+		function defineProperties(target, options/*, source, ...*/)
 		{
 			if (options == null)
 				options = {};
 
-			for (var prop in source)
+			var i = 2,
+				max = arguments.length,
+				source, prop;
+
+			for (; i < max; ++i)
 			{
-				if (source[prop] == null)
+				source = arguments[i];
+				if (!(source instanceof Object))
 					continue;
 
-				defineProperty(target, prop, {
-					value: source[prop],
-					enumerable: options.enumerable == null ? true : !!options.enumerable,
-					writable: options.writable == null ? true : !!options.writable,
-					configurable: options.configurable == null ? true : !!options.configurable
-				});
+				for (prop in source)
+				{
+					if (source[prop] == null)
+						continue;
+
+					defineProperty(target, prop, {
+						value: source[prop],
+						enumerable: options.enumerable == null ? true : !!options.enumerable,
+						writable: options.writable == null ? true : !!options.writable,
+						configurable: options.configurable == null ? true : !!options.configurable
+					});
+				}
 			}
 
 			return target;
@@ -44,7 +55,7 @@ void function()
 		// Copy non-null properties from all sources, to the target
 		function setProperties(target/*, source, ...*/)
 		{
-			var i = 0,
+			var i = 1,
 				max = arguments.length,
 				source, prop;
 
@@ -74,11 +85,11 @@ void function()
 			constructor.prototype = new anonymous();
 			constructor.constructor = constructor;
 
+			defineProperties.apply(null, [constructor.prototype, { configurable: false }].concat(Array.prototype.slice.call(arguments, 2)));
+
 			defineProperties(constructor, { configurable: false }, {
 				extend: partial(extendClass, constructor)
 			});
-
-			setProperties.apply(null, [constructor.prototype], Array.prototype.slice.call(arguments, 2));
 
 			return constructor;
 		}
@@ -225,6 +236,90 @@ void function()
 			return req.responseText;
 		}
 
+		var Logger = defineProperties({}, { configurable: false }, {
+			setLog: function(log)
+			{
+				if (log instanceof Function)
+					this.log = log;
+				else
+					this.log = false;
+
+				return this.target;
+			},
+			setConsole: function(console)
+			{
+				this.console = !!console;
+
+				return this.target;
+			},
+			setConsoleGroup: function(group)
+			{
+				this.group = group === 'collapse' ? group : !!group;
+
+				return this.target;
+			},
+			log: function(message)
+			{
+				if (this.console && typeof console !== 'undefined' && typeof console.log !== 'undefined')
+					console.log(message);
+
+				if (this.log)
+					this.log(message);
+
+				return this.target;
+			},
+			group: function(message, submessage, callback)
+			{
+				if (!this.group || typeof console === 'undefined' || typeof console.group === 'undefined')
+					return callback.apply(this.target, Array.prototype.slice.call(arguments, 3));
+
+				var key = message ? (submessage ? message + ":" + submessage : message) : '';
+
+				if (this.group === 'collapse')
+					console.groupCollapsed(key);
+				else
+					console.group(key);
+
+				try
+				{
+					return callback.apply(this.target, Array.prototype.slice.call(arguments, 3));
+				}
+				finally
+				{
+					console.groupEnd(key);
+				}
+			},
+			mixin: function(target, options)
+			{
+				var state = {
+					target: target,
+					log: void 0,
+					console: false,
+					group: false,
+				};
+
+				defineProperties(target, { configurable: false }, {
+					setLog: portable(state, this.setLog),
+					setConsole: portable(state, this.setConsole),
+					setConsoleGroup: portable(state, this.setConsoleGroup),
+					_log: portable(state, this.log),
+					_group: portable(state, this.group)
+				});
+
+				if (options instanceof Object)
+				{
+					if (options.log != null)
+						target.setLog(options.log);
+					if (options.console != null)
+						target.setConsole(options.console);
+					if (options.consoleGroup != null)
+						target.setConsoleGroup(options.consoleGroup);
+				}
+
+				return target;
+			}
+		});
+
 		function Name(value)
 		{
 			if (!(this instanceof Name))
@@ -284,34 +379,21 @@ void function()
 			if (!(this instanceof Resolver))
 				return new Resolver(options);
 
-			if (options instanceof Resolver)
-			{
-				this._cache = options._cache;
-				this._manifestCache = options._manifestCache;
-				this._core = options._core;
-				this._onLog = options._onLog;
-				this._useConsole = options._useConsole;
-				this._root = options._root;
-				this._prefix = options._prefix;
-				this._manifest = options._manifest;
-				this._get = options._get;
-			}
-			else
-			{
-				options = this.options = setProperties({}, this.options, options);
+			Logger.mixin(this, options);
 
-				this._cache = {};
-				this._manifestCache = {};
-				this._core = {};
+			options = this.options = setProperties({}, this.options, options);
 
-				this._initConsole(options.console);
-				this._initLog(options.log);
+			this._cache = {};
+			this._manifestCache = {};
+			this._core = {};
+
+			this._group("Resolver Initialization", null, function()
+			{
 				this._initRoot(options.root);
 				this._initPrefix(options.prefix);
 				this._initManifest(options.manifest);
 				this._initGet(options.get);
-				this._initCore(options.core);
-			}
+			});
 		}
 		defineProperties(Resolver.prototype, { configurable: false }, {
 			options: void 0,
@@ -367,8 +449,6 @@ void function()
 			},
 			_cache: void 0,
 			_manifestCache: void 0,
-			_useConsole: false,
-			_onLog: void 0,
 			_root: '/',
 			_prefix: 'node_modules',
 			_manifest: 'package.json',
@@ -425,24 +505,6 @@ void function()
 				}
 
 				return module;
-			},
-			_log: function(message)
-			{
-				if (this._useConsole && typeof console !== 'undefined' && typeof console.log !== 'undefined')
-					console.log(message);
-
-				if (this._onLog)
-					this._onLog(message);
-			},
-			_initConsole: function(console)
-			{
-				if (console != null)
-					this._useConsole = !!console;
-			},
-			_initLog: function(log)
-			{
-				if (log instanceof Function)
-					this._onLog = log;
 			},
 			_initRoot: function(root)
 			{
@@ -526,13 +588,6 @@ void function()
 
 				if (!this._get)
 					throw new Error("missing get function");
-			},
-			_initCore: function(core)
-			{
-				if (!(core instanceof Object))
-					return;
-
-				this.addCore(core);
 			},
 			_addCore: function(name, core)
 			{
@@ -701,33 +756,12 @@ void function()
 			if (!(this instanceof Needy))
 				return new Needy(options);
 
-			if (options instanceof Needy)
-			{
-				this.resolver = options.resolver;
-				this.fallback = options.fallback;
-				this._initializers = options._initializers;
-				this._allowUnresolved = options._allowUnresolved;
+			Logger.mixin(this, options);
 
-				defineProperties(this, { configurable: false, writable: false }, { parent: options });
-			}
-			else
-			{
-				options = this.options = setProperties({}, this.options, options);
+			options = this.options = setProperties({}, this.options, options);
 
-				this._initializers = {};
-				this._prerequire = [];
-
-				this._initResolver(options);
-				this._initFallback(options.fallback);
-				this._initInitializers(options.initializers);
-				this._initPrerequire(options.prerequire);
-				this._initAllowUnresolved(options.allowUnresolved);
-				this._initConsole(options.console);
-				this._initConsoleGroup(options.consoleGroup);
-
-				if (typeof __needy !== 'undefined' && __needy instanceof Needy)
-					defineProperties(this, { configurable: false, writable: false }, { parent: __needy });
-			}
+			this._initializers = {};
+			this._prerequire = [];
 		}
 		defineProperties(Needy.prototype, { configurable: false }, {
 			options: void 0,
@@ -758,6 +792,28 @@ void function()
 				if (this._mainModule)
 					throw new Error("already initialized");
 
+				if (!(this.options instanceof Object))
+					this.options = {};
+
+				this._group('Needy Initialization', null, function()
+				{
+					if (typeof __needy !== 'undefined' && __needy instanceof Needy)
+					{
+						this._log('Parent Needy instance detected');
+						defineProperties(this, { configurable: false, writable: false }, { parent: __needy });
+					}
+					else
+					{
+						this._log('No parent');
+					}
+
+					this._initFallback(this.options.fallback);
+					this._initAllowUnresolved(this.options.allowUnresolved);
+					this._initResolver(this.options);
+					this._initInitializers(this.options.initializers);
+					this._initPrerequire(this.options.prerequire);
+				});
+
 				this._require(null, name);
 
 				return this._mainModule;
@@ -768,17 +824,7 @@ void function()
 			},
 			resolve: function(name, dirname)
 			{
-				var groupKey = this._beginConsoleGroup(dirname, name);
-
-				try
-				{
-					return this._resolve(dirname, name);
-				}
-				finally
-				{
-					if (groupKey)
-						console.groupEnd(groupKey);
-				}
+				return this._group(dirname || '[root]', name, _resolve, dirname, name);
 			},
 			addInitializer: function(ext, fn)
 			{
@@ -789,35 +835,16 @@ void function()
 					throw new Error('initializers must be functions');
 
 				this._initializers[ext] = fn;
+
+				this._log('Initializer added: "' + ext + '"');
 			},
 			_mainModule: false,
 			_initializers: void 0,
 			_prerequire: void 0,
 			_allowUnresolved: false,
-			_useConsole: false,
-			_useConsoleGroup: false,
-			_beginConsoleGroup: function(dirname, name)
-			{
-				if (this._useConsoleGroup && typeof console !== 'undefined' && typeof console.group !== 'undefined')
-				{
-					var groupKey = (dirname || "[root]") + ':' + name;
-					if (this._useConsoleGroup === 'collapse' && typeof console.groupCollapsed !== 'undefined')
-						console.groupCollapsed(groupKey);
-					else
-						console.group(groupKey);
-
-					return groupKey;
-				}
-				else
-				{
-					return false;
-				}
-			},
 			_require: function(dirname, name)
 			{
-				var groupKey = this._beginConsoleGroup(dirname, name);
-
-				try
+				return this._group(dirname || '[root]', name, function()
 				{
 					var module = dethrow(portable(this, this._resolve), dirname, name);
 					if (!(module instanceof Module))
@@ -829,12 +856,7 @@ void function()
 						throw module.error;
 
 					return module.exports;
-				}
-				finally
-				{
-					if (groupKey)
-						console.groupEnd(groupKey);
-				}
+				});
 			},
 			_resolve: function(dirname, name)
 			{
@@ -854,11 +876,14 @@ void function()
 				{
 					this._mainModule = module;
 
-					if (this._prerequire)
+					if (this._prerequire && this._prerequire.length > 0)
 					{
-						var i = this._prerequire.length;
-						while (i--)
-							this._require(null, this._prerequire[i]);
+						this._group('Prerequiring modules', null, function()
+						{
+							var i = this._prerequire.length;
+							while (i--)
+								this._require(null, this._prerequire[i]);
+						});
 					}
 				}
 
@@ -918,29 +943,56 @@ void function()
 						throw e;
 				}
 			},
-			_initResolver: function(options)
-			{
-				if (options.resolver instanceof Resolver || options.resolver instanceof Function)
-					this.resolver = options.resolver;
-				else if (!(this.resolver instanceof Resolver))
-					this.resolver = new Resolver(options);
-
-				if (this.resolver.addCore instanceof Function)
-				{
-					// Attempt to add Needy to the resolver as a core module. Silently fail if the
-					// "needy" core name is already registered.
-					dethrow(portable(this.resolver, 'addCore'), 'needy', function(module)
-					{
-						module.exports = Needy;
-					});
-				}
-			},
 			_initFallback: function(fallback)
 			{
 				if (fallback instanceof Function)
 					this.fallback = fallback;
 				else if (!(this.fallback instanceof Function) && typeof require !== 'undefined' && require instanceof Function)
 					this.fallback = require;
+
+				if (this.fallback)
+					this._log('Fallback require is set');
+				else
+					this._log('No fallback');
+			},
+			_initAllowUnresolved: function(allowUnresolved)
+			{
+				if (allowUnresolved != null)
+					this._allowUnresolved = !!allowUnresolved;
+
+				if (this._allowUnresolved)
+					this._log('Ignore module unresolved errors');
+				else
+					this._log('Throw module unresolved errors');
+			},
+			_initResolver: function(options)
+			{
+				if (options.resolver instanceof Resolver || options.resolver instanceof Function)
+					this.resolver = options.resolver;
+
+				if (!(this.resolver instanceof Function) && !(this.resolver instanceof Resolver))
+				{
+					this._log('Creating default resolver');
+					this.resolver = new Resolver(options);
+				}
+				else
+				{
+					this._log('Using external resolver ' + (this.resolver instanceof Function ? 'function' : 'instance'));
+				}
+
+				if (this.resolver.addCore instanceof Function)
+				{
+					dethrow(portable(this.resolver, 'addCore'), setProperties({
+						needy: function(module)
+						{
+							module.exports = Needy;
+						}
+					}, options.core));
+				}
+				else
+				{
+					this._log('Resolver does not support addCore() method');
+				}
 			},
 			_initInitializers: function(initializers)
 			{
@@ -958,24 +1010,17 @@ void function()
 				var i = prerequire.length;
 				while(i--)
 				{
-					if (typeof prerequire[i] === 'string' || prerequire[i] instanceof Module)
+					if (typeof prerequire[i] === 'string')
+					{
 						this._prerequire.push(prerequire[i]);
+						this._log('Prerequire added: "' + prerequire[i] + '"');
+					}
+					else if (prerequire[i] instanceof Module)
+					{
+						this._prerequire.push(prerequire[i]);
+						this._log('Prerequire added: "' + prerequire[i].id + '"');
+					}
 				}
-			},
-			_initAllowUnresolved: function(allowUnresolved)
-			{
-				if (allowUnresolved != null)
-					this._allowUnresolved = !!allowUnresolved;
-			},
-			_initConsole: function(console)
-			{
-				if (console != null)
-					this._useConsole = !!console;
-			},
-			_initConsoleGroup: function(consoleGroup)
-			{
-				if (consoleGroup != null)
-					this._useConsoleGroup = consoleGroup;
 			}
 		});
 		defineProperties(Needy.prototype, { configurable: false, writable: false }, {
@@ -985,6 +1030,8 @@ void function()
 			version: __version_updated_on_prepublish,
 			Resolver: Resolver,
 			Module: Module,
+			Logger: Logger,
+			Name: Name,
 			utils: defineProperties({}, { configurable: false, writable: false }, {
 				defineProperties: defineProperties,
 				setProperties: setProperties,
