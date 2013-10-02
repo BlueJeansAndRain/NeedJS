@@ -1,0 +1,23 @@
+{
+  "name": "needy",
+  "main": "needy.js",
+  "version": "0.2.1",
+  "homepage": "https://github.com/BlueJeansAndRain/needy",
+  "authors": [
+    "Chris Ackerman <chris@bonzidev.com>"
+  ],
+  "description": "CommonJS modules for the browser, Node.js, or any other JavaScript environment.",
+  "keywords": [
+    "commonjs",
+    "module",
+    "require"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
