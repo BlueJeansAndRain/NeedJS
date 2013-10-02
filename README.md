@@ -276,29 +276,6 @@ Module resolution, logging, and core environment can be customized via an option
     // property set to false, or throw an exception.
     resolver: new Needy.Resolver(options),
 
-    //
-    // Options below this point are for the default Needy.Resolver
-    // instance that is created when the resolver option is not set. They
-    // have no effect if a custom resolver is used._
-    //
-
-    // The path prefix to use when requiring relative or top-level main
-    // module, prequire, and core module names. Defaults in order to whichever
-    // of the following exists:__dirname, __filename directory part, module.uri
-    // directory part, window.location directory part, or "/". If this is
-    // not an absolute (beginning with /) path, then it is appended to the
-    // default startPath.
-    root: "/",
-
-    // The dependencies directory name to look for when resolving
-    // top-level module names. Defaults to "node_modules" for Node.js
-    // compatibility.
-    prefix: "node_modules",
-
-    // The manifest file name to look for in directory modules. Defaults
-    // to "package.json" for Node.js compatibility.
-    manifest: "package.json",
-
     // Syncronously fetch the plain/text at a URI. Defaults to an internal
     // default method based on Node's file system module or XMLHttpRequest
     // class, depending on what's available in the environment.
@@ -306,6 +283,14 @@ Module resolution, logging, and core environment can be customized via an option
         // Return a string on on success. On failure, return a non-string
         // value or throw an exception.
     },
+
+    // The path prefix to use when requiring relative or top-level main
+    // module, prequire, and core module names. Defaults in order to whichever
+    // of the following exists:__dirname, __filename directory part, module.uri
+    // directory part, window.location directory part, or "/". If this is
+    // not an absolute (beginning with /) path, then it is appended to the
+    // default root.
+    root: "/",
 
     // Core module names mapped to their "real" require name or an
     // initializer function. Top-level and relative module paths will be
@@ -317,7 +302,28 @@ Module resolution, logging, and core environment can be customized via an option
         {
             // Set or return exported API.
         }
-    }
+    },
+
+    // The extensions (without dots) to try adding to module names. Defaults to
+    // no extension, "js", "json", and finally "node", for Node.js
+    // compatibility. This can be a string, array, or object. If an object,
+    // then the property names are the extensions and the values are integer
+    // priorities. A priority of false will remove an extension.
+    extension: ["", "js", "json", "node"]
+
+    // The manifest name(s) to look for in directory modules. Defaults to
+    // "package.json" for Node.js compatibility. This can be a string, array,
+    // or object. If an object, then the property names are the manifest names
+    // and the values are integer priorities. A priority of false will remove
+    // a manifest name.
+    manifest: ["package.json"],
+
+    // The dependency directory name(s) to look for when resolving top-level
+    // module names. Defaults to "node_modules" for Node.js compatibility.
+    // This can be a string, array, or object. If an object, then the property
+    // names are the prefixes and the values are integer priorities. A priority
+    // of false will remove a prefix.
+    prefix: ["node_modules"]
 }
 ```
 
@@ -330,42 +336,16 @@ Class structure outline:
 
 * `Needy`
     * _static_
-        * `Resolver`
+        * `Logger`
+        * `Name`
+        * `PriorityList`
             * _properties_
-                * options = Object
-                * _cache = Object
-                * _manifestCache = Object
-                * _root = String
-                * _prefix = String
-                * _manifest = String
-                * _get = Function
-                * _core = Object
+                * _list = Array
             * _methods_
-                * constructor(options)
-                * constructor(Resolver)
-                * resolve(name, dirname)
-                * resolve(module)
-                * addCore(name, core)
-                * uncache(name)
-                * setLog(callback)
-                * setConsole(enabled)
-                * setConsoleGroup(enabled)
-                * _log(message)
-                * _group(message, submessage, callback, args...)
-                * _resolve(dirname, name)
-                * _initRoot(options.root)
-                * _initPrefix(options.prefix)
-                * _initManifest(options.manifest)
-                * _initGet(options.get)
-                * _getManifestMain(directory)
-                * _addCore(name, core)
-                * _load(path)
-                * _loadFile(name)
-                * _loadDirectory(name)
-                * _loadNonTop(name)
-                * _loadTop(dirname, name)
-            * _static\_methods_
-                * extend(childConstructor, prototype...)
+                * set(value, priority)
+                * each(context, callback)
+                * toArray()
+                * toString()
         * `Module`
             * _properties_
                 * id = String
@@ -373,6 +353,52 @@ Class structure outline:
                 * exports
             * _methods_
                 * constructor(id, source)
+            * _static\_methods_
+                * extend(childConstructor, prototype...)
+        * `Resolver`
+            * _properties_
+                * options = Object
+                * _cache = Object
+                * _manifestCache = Object
+                * _root = String
+                * _get = Function
+                * _core = Object
+                * _extensions = PriorityList
+                * _prefixes = PriorityList
+                * _manifests = PriorityList
+            * _methods_
+                * _inherited from `Logger`_
+                    * setLog(callback)
+                    * setConsole(enabled)
+                    * setConsoleGroup(enabled)
+                    * _log(message)
+                    * _group(message, submessage, callback, args...)
+                * constructor(options)
+                * resolve(name, dirname)
+                * resolve(module)
+                * setRoot(root)
+                * setCore(name, core)
+                * setExtension(ext, priority)
+                * setManifest(manifest, priority)
+                * setPrefix(manifest, prefix)
+                * uncache(name)
+                * _resolve(dirname, name)
+                * _initRoot(options.root)
+                * _initExtension()
+                * _initPrefix()
+                * _initManifest()
+                * _initGet(options.get)
+                * _getManifestMain(directory)
+                * _normSet(a, b, callback)
+                * _setCore(name, core)
+                * _setExtension(ext, priority)
+                * _setManifest(manifest, priority)
+                * _setPrefix(prefix, priority)
+                * _load(path)
+                * _loadFile(name)
+                * _loadDirectory(name)
+                * _loadNonTop(name)
+                * _loadTop(dirname, name)
             * _static\_methods_
                 * extend(childConstructor, prototype...)
         * version = String
@@ -387,11 +413,12 @@ Class structure outline:
             * joinPath(path...)
             * isAbsPath(path)
             * isValidPath(path)
+            * csv(array)
             * defaultGetNode(path)
             * defaultGetBrowser(path)
     * _properties_
-        * options = Object
         * parent = Needy | null
+        * options = Object
         * resolver = Function | Needy.Resolver
         * fallback = Function | false
         * defaultInitializers = Object
@@ -403,24 +430,24 @@ Class structure outline:
         * _prerequire = Array
         * _allowUnresolved = Boolean
     * _methods_
+        * _inherited from `Logger`_
+            * setLog(callback)
+            * setConsole(enabled)
+            * setConsoleGroup(enabled)
+            * _log(message)
+            * _group(message, submessage, callback, args...)
         * constructor(options)
-        * constructor(Needy)
         * init(name)
         * require(name, dirname)
         * resolve(name, dirname)
         * addInitializer(extension, init_function)
-        * setLog(callback)
-        * setConsole(enabled)
-        * setConsoleGroup(enabled)
-        * _log(message)
-        * _group(message, submessage, callback, args...)
         * _require(dirname, name)
         * _resolve(dirname, name)
         * _extendModule(module)
         * _moduleInit(module, name)
+        * _initResolver(options)
         * _initFallback(options.fallback)
         * _initAllowUnresolved(options.allowUnresolved)
-        * _initResolver(options)
         * _initInitializers(options.initializers)
         * _initPrerequire(options.prerequire)
     * _static\_methods_

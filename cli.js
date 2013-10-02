@@ -14,7 +14,7 @@ if (typeof __needy === 'undefined' && require.main === module)
 		var repl = require('repl').start('needy> ').context;
 
 		// Add a dummy core module called "repl".
-		needy.resolver.addCore('repl', function() {});
+		needy.resolver.setCore('repl', function() {});
 
 		// Use the dummy as the REPL session main module.
 		var main = needy.init('repl');
