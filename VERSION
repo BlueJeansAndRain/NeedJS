@@ -1,4 +1,4 @@
-0.2.2
+0.2.3
 
 package.json:/"version"\s*:\s*\S*/
 bower.json:/"version"\s*:\s*\S*/
