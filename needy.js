@@ -1,6 +1,6 @@
 void function()
 {
-	var version = "0.2.0";
+	var version = "0.2.1";
 
 	"use strict";
 	/* jshint evil: true */
@@ -506,6 +506,7 @@ void function()
 			{
 				this._initGet(options.get);
 				this._initRoot();
+				this._initCore();
 				this._initExtension();
 				this._initPrefix();
 				this._initManifest();
@@ -723,10 +724,18 @@ void function()
 				if (!this._get)
 					throw new Error("missing get function");
 			},
-			_initRoot: function(root)
+			_initRoot: function()
 			{
 				this._root = cwd;
 				this._log('Default root: "' + this._root + '"');
+			},
+			_initCore: function()
+			{
+				this._core.needy = function() { return Needy; };
+				var core = [];
+				for (var name in this._core)
+					core.push(name);
+				this._log('Default core modules: ' + csv(core));
 			},
 			_initExtension: function()
 			{
@@ -772,8 +781,6 @@ void function()
 
 				if (!name.topLevel)
 					throw new Error("core name not top-level");
-				if (this._core.hasOwnProperty(name.value))
-					throw new Error("core name redefinition");
 
 				this._core[name.value] = core;
 			},
@@ -1227,8 +1234,6 @@ void function()
 				}
 
 				this.setRoot(options.root);
-				if (this.resolver.setCore instanceof Function)
-					this.setCore('needy', function(module) { module.exports = Needy; });
 				this.setCore(options.core);
 				this.setExtension(options.extension);
 				this.setManifest(options.manifest);
