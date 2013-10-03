@@ -78,7 +78,7 @@ Features
     * Node.js-like module resolution algorithm is implemented including "node_modules" sub-directory lookup, and directory modules with or without "package.json" files.
         * 404 warnings may be displayed in a browser's console due to module resolution. This is not a bug, it's just the only way for the browser to determine if a file exists. For production, compiling is recommended.
     * _Node.js core modules are __not__ provided by this project._
-        * _(planned)_ They will be available via the [needy-nodecore](https://github.com/BlueJeansAndRain/needy-nodecore) project, which will be based on the [browser-builtins](https://npmjs.org/package/browser-builtins) project which is the same project that browserify uses for browser compatible Node.js core modules.
+        * They are available via the [needy-nodecore](https://github.com/BlueJeansAndRain/needy-nodecore) project, which is based on the [browser-builtins](https://npmjs.org/package/browser-builtins) project which is the same project that browserify uses for browser compatible Node.js core modules.
 * More extensible than the Node.js module system.
     * Add custom core modules.
     * Add initializers for more file types, beyond the regular JavaScript, JSON, and Node.js binary modules.
@@ -323,7 +323,22 @@ Module resolution, logging, and core environment can be customized via an option
     // This can be a string, array, or object. If an object, then the property
     // names are the prefixes and the values are integer priorities. A priority
     // of false will remove a prefix.
-    prefix: ["node_modules"]
+    prefix: ["node_modules"],
+
+    // Allow module names to be resolved to extension-less filenames. This does
+    // NOT mean you can or can't pass an extension-less string to require()!
+    // It only affects whether or not extension-less filenames are ignored
+    // during the resolve process. If you require("./foo") with this option
+    // set to false, the resolver will skip trying to read "./foo" and go
+    // directly to "./foo.js" or whatever the highest priority implicit
+    // extension is. This option has no effect if you require a string with an
+    // explicit extension.
+    //
+    // * This is the only default deviation from Node.js resolution behavior.
+    //   Set this option to true in order to be more conformant to the Node.js
+    //   standard.
+    //
+    allowExtensionless: false
 }
 ```
 
@@ -366,6 +381,7 @@ Class structure outline:
                 * _extensions = PriorityList
                 * _prefixes = PriorityList
                 * _manifests = PriorityList
+                * _allowExtensionless = Boolean
             * _methods_
                 * _inherited from `Logger`_
                     * setLog(callback)
@@ -376,6 +392,7 @@ Class structure outline:
                 * constructor(options)
                 * resolve(name, dirname)
                 * resolve(module)
+                * setGet(get)
                 * setRoot(root)
                 * setCore(name, core)
                 * setExtension(ext, priority)
@@ -383,12 +400,13 @@ Class structure outline:
                 * setPrefix(manifest, prefix)
                 * uncache(name)
                 * _resolve(dirname, name)
+                * _initGet()
                 * _initRoot()
                 * _initCore()
                 * _initExtension()
                 * _initPrefix()
                 * _initManifest()
-                * _initGet(options.get)
+                * _initAllowExtensionless(options.allowExtensionless)
                 * _getManifestMain(directory)
                 * _normSet(a, b, callback)
                 * _setCore(name, core)
@@ -442,6 +460,13 @@ Class structure outline:
         * require(name, dirname)
         * resolve(name, dirname)
         * addInitializer(extension, init_function)
+        * setGet(get)
+        * setRoot(root)
+        * setCore(name, core)
+        * setExtension(ext, priority)
+        * setManifest(manifest, priority)
+        * setPrefix(manifest, prefix)
+        * uncache(name)
         * _require(dirname, name)
         * _resolve(dirname, name)
         * _extendModule(module)
@@ -459,7 +484,7 @@ You can write modules that work with the Needy instance that required them via t
 RequireJS vs. Browserify vs. Needy
 ----------------------------------
 
-Currently the two hot projects for modular code in the browser are RequireJS and Browserify. Needy fills what I feel is an unclaimed middle ground.\
+Currently the two hot projects for modular code in the browser are RequireJS and Browserify. Needy fills what I feel is an unclaimed middle ground.
 
 Here's a breakdown of how they all relate:
 
@@ -507,7 +532,7 @@ Here's a breakdown of how they all relate:
         * No _included_ compiler.
             * Can leverage Browserify compiler, just like Node.js.
         * No _built-in_ node core module emulation.
-            * It does support adding Node.js core modules via the (planned) needy-nodecore module.
+            * It does support adding Node.js core modules via the needy-nodecore module.
 
 ### Sync vs. Async
 
@@ -530,6 +555,10 @@ Known Issues
 ------------
 
 ### Problem
+
+> _Version >= 0.2.6_
+>
+> As of this version, the default resolver behavior is to skip files/directories that do not have an extension. Because 99% of all directory names do not have an extension and 99% of all files do, this issue is mostly avoided.
 
 Default or auto indexes cause strange require failures. If you request top-level module "foo" lets say from the document root to make it simple. The first path that Needy tries to fetch from the server is "/node_modules/foo". If "/node_modules/foo/index.html" exists and your server is configured to return index.html as the default index for directories, then Needy is going to get a 200 response, but it's going to contain HTML instead of JavaScript. Likewise, if you're server is configured to return an auto-index (auto generated list of files the directory contains), then again it's going to get a 200 response with HTML.
 

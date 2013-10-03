@@ -504,12 +504,14 @@ void function()
 
 			this._group("Resolver Initialize", null, function()
 			{
-				this._initGet(options.get);
+				this._initGet();
 				this._initRoot();
 				this._initCore();
 				this._initExtension();
 				this._initPrefix();
 				this._initManifest();
+
+				this._initAllowExtensionless(options.allowExtensionless);
 			});
 		}
 		defineProperties(Resolver.prototype, { configurable: false }, {
@@ -539,6 +541,17 @@ void function()
 				}
 
 				return this._resolve(dirname, module);
+			},
+			setGet: function(fn)
+			{
+				if (fn == null)
+					return this;
+				if (fn instanceof Function)
+					throw new Error("invalid get function");
+
+				this._get = fn;
+
+				this._log('Custom get function set');
 			},
 			setRoot: function(root)
 			{
@@ -636,12 +649,13 @@ void function()
 			},
 			_cache: void 0,
 			_manifestCache: void 0,
-			_root: '/',
 			_get: void 0,
+			_root: '/',
 			_core: void 0,
 			_extensions: void 0,
 			_prefixes: void 0,
 			_manifests: void 0,
+			_allowExtensionless: false,
 			_resolve: function(dirname, name)
 			{
 				if (!(name instanceof Name))
@@ -694,13 +708,10 @@ void function()
 
 				return module;
 			},
-			_initGet: function(get)
+			_initGet: function()
 			{
-				if (get instanceof Function)
-				{
-					this._get = get;
+				if (this._get instanceof Function)
 					return;
-				}
 
 				try
 				{
@@ -708,18 +719,21 @@ void function()
 					// default get function for Node.js.
 
 					var fs = require('fs');
-					this._get = partial(defaultGetNode, fs);
+					if (fs.readFileSync instanceof Function && fs.existsSync instanceof Function)
+					{
+						this._get = partial(defaultGetNode, fs);
+						return;
+					}
 				}
-				catch (e)
-				{
-					// If requiring "fs" fails, then attempt to use the default get function for
-					// the browser which uses XMLHttpRequest or IE's ActiveX equivalent.
+				catch (e) {}
 
-					if (global.XMLHttpRequest)
-						this._get = partial(defaultGetBrowser, global.XMLHttpRequest);
-					else if (global.ActiveXObject)
-						this._get = partial(defaultGetBrowser, global.ActiveXObject('MSXML2.XMLHTTP.3.0'));
-				}
+				// If requiring "fs" fails or readFileSync/existsSync is unimplemented (browserify),
+				// then attempt to use the default get function for the browser which uses
+				// XMLHttpRequest or IE's ActiveX equivalent.
+				if (global.XMLHttpRequest)
+					this._get = partial(defaultGetBrowser, global.XMLHttpRequest);
+				else if (global.ActiveXObject)
+					this._get = partial(defaultGetBrowser, global.ActiveXObject('MSXML2.XMLHTTP.3.0'));
 
 				if (!this._get)
 					throw new Error("missing get function");
@@ -751,6 +765,11 @@ void function()
 			{
 				this._manifests.set('package.json');
 				this._log('Default manifests: ' + this._manifests.toString());
+			},
+			_initAllowExtensionless: function(allowExtensionless)
+			{
+				if (allowExtensionless != null)
+					this._allowExtensionless = !!allowExtensionless;
 			},
 			_normSet: function(a, b, fn)
 			{
@@ -852,6 +871,9 @@ void function()
 			},
 			_load: function(path)
 			{
+				if (!this._allowExtensionless && !(/(^|[\/\\])[\/\\]*\.[\/\\]*$/).test(path))
+					return false;
+
 				this._log('  Trying "' + path + '"');
 
 				if (this._cache.hasOwnProperty(path))
@@ -1046,6 +1068,15 @@ void function()
 					this._log('Initializer set: "' + ext + '"');
 				}
 			},
+			setGet: function(get)
+			{
+				if (!(this.resolver.setGet instanceof Function))
+					this._log('Resolver does not support setGet() method');
+				else
+					this.resolver.setGet(get);
+
+				return this;
+			},
 			setRoot: function(root)
 			{
 				if (!(this.resolver.setRoot instanceof Function))
@@ -1088,6 +1119,15 @@ void function()
 					this._log('Resolver does not support setPrefix() method');
 				else
 					this.resolver.setPrefix(prefix, priority);
+
+				return this;
+			},
+			uncache: function(name)
+			{
+				if (!(this.resolver.uncache instanceof Function))
+					this._log('Resolver does not support uncache() method');
+				else
+					this.resolver.uncache(name);
 
 				return this;
 			},
@@ -1233,6 +1273,7 @@ void function()
 					this._log('Using external resolver ' + (this.resolver instanceof Function ? 'function' : 'instance'));
 				}
 
+				this.setGet(options.get);
 				this.setRoot(options.root);
 				this.setCore(options.core);
 				this.setExtension(options.extension);
