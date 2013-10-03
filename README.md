@@ -559,7 +559,3 @@ location ~ /(node_modules|bower_components) {
 #### Node.js
 
 There are a lot of ways to serve up static files from Node. The good news is, since it's Node, I'm sure there's a way not to auto- or default-index. The bad news is, that it's specific to whatever module/stack you are using.
-
-#### Alternatively
-
-You can use the `extension` option to lower the resolution priority of extension-less paths. `extension: { "": -1 }` causes it to be tried after all other extensions, which have a priority of 0. `extension: { "": false }` would disable extension-less paths completely.
