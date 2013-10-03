@@ -230,6 +230,15 @@ void function()
 			return array.join(', ');
 		}
 
+		function indexIn(array, test)
+		{
+			var i = 0, max = array.length;
+			for (; i < max; ++i) if (array[i] === test)
+				return i;
+
+			return -1;
+		}
+
 		function defaultGetNode(fs, path)
 		{
 			if (/\.node$/.test(path))
@@ -624,7 +633,7 @@ void function()
 			{
 				this._normSet(prefix, priority, function(prefix, priority)
 				{
-					var delim = prefix.indexOf(':'),
+					var delim = indexIn(prefix, ':'),
 						manifests;
 
 					if (delim >= 0)
@@ -816,20 +825,20 @@ void function()
 			},
 			_setManifest: function(manifest, priority)
 			{
-				if (!isValidPath(manifest) || manifest.indexOf('/') !== -1)
+				if (!isValidPath(manifest) || indexIn(manifest, '/') !== -1)
 					throw new Error('invalid manifest name');
 
 				this._manifests.set(manifest, priority);
 			},
 			_setPrefix: function(prefix, manifests, priority)
 			{
-				if (!isValidPath(prefix) || prefix.indexOf('/') !== -1)
+				if (!isValidPath(prefix) || indexIn(prefix, '/') !== -1)
 					throw new Error('invalid prefix name');
 
 				if (manifests instanceof Array)
 				{
 					var i = manifests.length;
-					while (i--) if (!isValidPath(manifests[i]) || manifests[i].indexOf('/') !== -1)
+					while (i--) if (!isValidPath(manifests[i]) || indexIn(manifests[i], '/') !== -1)
 						throw new Error('invalid manifest name');
 				}
 
@@ -939,7 +948,7 @@ void function()
 				{
 					return this._manifests.each(this, function(manifest)
 					{
-						if (prefix_manifests.indexOf(manifest) !== -1)
+						if (indexIn(prefix_manifests, manifest) !== -1)
 							return;
 
 						return this._getManifestMain(joinPath(path, manifest)) || null;
@@ -1001,7 +1010,7 @@ void function()
 					{
 						// Don't search in nested dependency prefix directories.
 						// Example: .../node_modules/node_modules
-						if (i >= 0 && prefixes.indexOf(parts[i]) !== -1)
+						if (i >= 0 && indexIn(prefixes, parts[i]) !== -1)
 							return;
 
 						this._log(' Prefix "' + joinPath(root, def.prefix) + '"');
