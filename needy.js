@@ -516,16 +516,16 @@ void function()
 		}
 		defineProperties(Resolver.prototype, { configurable: false }, {
 			options: void 0,
-			resolve: function(module, dirname)
+			resolve: function(mod, dirname)
 			{
-				if (module instanceof Module)
+				if (mod instanceof Module)
 				{
-					if (this._cache[module.id])
+					if (this._cache[mod.id])
 						throw new Error("cache collision");
 
-					this._cache[module.id] = module;
+					this._cache[mod.id] = mod;
 
-					return module;
+					return mod;
 				}
 
 				if (dirname != null)
@@ -540,7 +540,7 @@ void function()
 					dirname = this._root;
 				}
 
-				return this._resolve(dirname, module);
+				return this._resolve(dirname, mod);
 			},
 			setGet: function(fn)
 			{
@@ -609,12 +609,12 @@ void function()
 					if (priority === false)
 					{
 						this._manifests.set(manifest, false);
-						this._log('Manifest name removed: "' + manifest + '"');
+						this._log('Generic manifest removed: "' + manifest + '"');
 					}
 					else
 					{
 						this._setManifest(manifest, priority);
-						this._log('Manifest name added: "' + manifest + '"');
+						this._log('Generic manifest added: "' + manifest + '"');
 					}
 				});
 
@@ -624,15 +624,27 @@ void function()
 			{
 				this._normSet(prefix, priority, function(prefix, priority)
 				{
+					var delim = prefix.indexOf(':'),
+						manifests;
+
+					if (delim >= 0)
+					{
+						manifests = prefix.slice(delim + 1).split(/\s*,\s*/);
+						prefix = prefix.slice(0, delim);
+					}
+
 					if (priority === false)
 					{
 						this._prefixes.set(prefix, false);
-						this._log('Prefix name removed: "' + prefix + '"');
+						this._log('Prefix removed: "' + prefix + '"');
 					}
 					else
 					{
-						this._setPrefix(prefix, priority);
-						this._log('Prefix name added: "' + prefix + '"');
+						this._setPrefix(prefix, manifests, priority);
+						if (manifests)
+							this._log('Prefix added: "' + prefix + '" (manifests: ' + csv(manifests) + ')');
+						else
+							this._log('Prefix added: "' + prefix + '"');
 					}
 				});
 
@@ -670,12 +682,12 @@ void function()
 
 				this._log('  Trying "' + name + '" in cache');
 
-				var module;
+				var mod;
 
 				if (this._cache[name.value])
 				{
 					this._log('  + Found (cache)');
-					module = this._cache[name.value];
+					mod = this._cache[name.value];
 				}
 				else
 				{
@@ -683,30 +695,30 @@ void function()
 
 					if (name.topLevel)
 					{
-						module = this._loadTop(dirname, name.value);
+						mod = this._loadTop(dirname, name.value);
 					}
 					else
 					{
 						name = joinPath(dirname, name.value);
-						module = this._loadNonTop(name);
+						mod = this._loadNonTop(name);
 					}
 				}
 
 				// A module is ALWAYS returned because it might be resolved outside of this resolver
 				// and if we didn't create the module then we wouldn't be able to cache it. The
 				// unresolved module's source property will be false.
-				if (!module)
+				if (!mod)
 				{
 					if (name instanceof Name)
 						name = name.value;
 
 					if (this._cache[name])
-						module = this._cache[name];
+						mod = this._cache[name];
 					else
-						module = this._cache[name] = new Module(name);
+						mod = this._cache[name] = new Module(name);
 				}
 
-				return module;
+				return mod;
 			},
 			_initGet: function()
 			{
@@ -740,31 +752,23 @@ void function()
 			},
 			_initRoot: function()
 			{
-				this._root = cwd;
-				this._log('Default root: "' + this._root + '"');
+				this.setRoot(cwd);
 			},
 			_initCore: function()
 			{
-				this._core.needy = function() { return Needy; };
-				var core = [];
-				for (var name in this._core)
-					core.push(name);
-				this._log('Default core modules: ' + csv(core));
+				this.setCore('needy', function() { return Needy; });
 			},
 			_initExtension: function()
 			{
-				this._extensions.set('').set('js').set('json').set('node');
-				this._log('Default extensions: ' + this._extensions.toString());
+				this.setExtension(['', 'js', 'json', 'node']);
 			},
 			_initPrefix: function()
 			{
-				this._prefixes.set('node_modules');
-				this._log('Default prefixes: ' + this._prefixes.toString());
+				this.setPrefix(['node_modules:package.json', 'bower_components:bower.json, component.json']);
 			},
 			_initManifest: function()
 			{
-				this._manifests.set('package.json');
-				this._log('Default manifests: ' + this._manifests.toString());
+				this.setManifest(['package.json', 'bower.json', 'component.json']);
 			},
 			_initAllowExtensionless: function(allowExtensionless)
 			{
@@ -817,57 +821,58 @@ void function()
 
 				this._manifests.set(manifest, priority);
 			},
-			_setPrefix: function(prefix, priority)
+			_setPrefix: function(prefix, manifests, priority)
 			{
 				if (!isValidPath(prefix) || prefix.indexOf('/') !== -1)
 					throw new Error('invalid prefix name');
 
-				this._prefixes.set(prefix, priority);
+				if (manifests instanceof Array)
+				{
+					var i = manifests.length;
+					while (i--) if (!isValidPath(manifests[i]) || manifests[i].indexOf('/') !== -1)
+						throw new Error('invalid manifest name');
+				}
+
+				this._prefixes.set({ prefix: prefix, manifests: manifests }, priority);
 			},
 			_getManifestMain: function(path)
 			{
-				if (typeof JSON === 'undefined')
-					return false;
+				this._log('  Checking for manifest main in "' + path + '"');
 
-				return this._manifests.each(this, function(manifest)
+				if (this._manifestCache.hasOwnProperty(path))
 				{
-					path = joinPath(path, manifest);
-
-					this._log('  Checking for manifest main in "' + path + '"');
-
-					if (this._manifestCache.hasOwnProperty(path))
+					if (!this._manifestCache[path])
 					{
-						if (this._manifestCache[path])
-							this._log('  + Found "' + this._manifestCache[path] + '" (cache)');
-						else
-							this._log('  - Not found (cache)');
-
+						this._log('  - Not found (cache)');
+						return false;
+					}
+					else
+					{
+						this._log('  + Found "' + this._manifestCache[path] + '" (cache)');
 						return this._manifestCache[path];
 					}
+				}
 
-					var source = dethrow(this._get, path);
-					if (typeof source !== 'string')
-					{
-						this._manifestCache[path] = false;
-						this._log('  - Not found');
+				var source = dethrow(this._get, path);
+				if (typeof source !== 'string')
+				{
+					this._manifestCache[path] = false;
+					this._log('  - Not found');
+					return false;
+				}
 
-						return null;
-					}
+				var obj = dethrow(JSON.parse, source);
+				if (!(obj instanceof Object) || !obj.main || typeof obj.main !== 'string')
+				{
+					this._manifestCache[path] = false;
+					this._log('  - Invalid');
+					return false;
+				}
 
-					var obj = dethrow(JSON.parse, source);
-					if (!(obj instanceof Object) || !obj.main || typeof obj.main !== 'string')
-					{
-						this._manifestCache[path] = false;
-						this._log('  - Invalid');
+				this._manifestCache[path] = obj.main;
+				this._log('  + Found "' + obj.main + '"');
 
-						return null;
-					}
-
-					this._manifestCache[path] = obj.main;
-					this._log('  + Found "' + obj.main + '"');
-
-					return obj.main;
-				}) || false;
+				return obj.main;
 			},
 			_load: function(path)
 			{
@@ -911,19 +916,49 @@ void function()
 					return this._load(ext ? name + '.' + ext : name) || null;
 				}) || false;
 			},
-			_loadDirectory: function(name)
+			_loadManifest: function(path, prefix_manifests)
 			{
-				var main = this._getManifestMain(name),
-					module;
+				if (typeof JSON === 'undefined')
+					return false;
+
+				if (prefix_manifests instanceof Array)
+				{
+					var i = 0,
+						max = prefix_manifests.length,
+						main;
+
+					for (; i < max; ++i)
+					{
+						if (main = this._getManifestMain(joinPath(path, prefix_manifests[i])))
+							return main;
+					}
+
+					return false;
+				}
+				else
+				{
+					return this._manifests.each(this, function(manifest)
+					{
+						if (prefix_manifests.indexOf(manifest) !== -1)
+							return;
+
+						return this._getManifestMain(joinPath(path, manifest)) || null;
+					}) || false;
+				}
+			},
+			_loadDirectory: function(name, prefix_manifests)
+			{
+				var main = this._loadManifest(name, prefix_manifests),
+					mod;
 
 				if (main)
-					module = this._loadFile(joinPath(name, main)) || this._loadFile(joinPath(name, main, 'index'));
+					mod = this._loadFile(joinPath(name, main)) || this._loadFile(joinPath(name, main, 'index'));
 
-				return module || this._loadFile(joinPath(name, 'index'));
+				return mod || this._loadFile(joinPath(name, 'index'));
 			},
-			_loadNonTop: function(name)
+			_loadNonTop: function(name, prefix_manifests)
 			{
-				return this._loadFile(name) || this._loadDirectory(name);
+				return this._loadFile(name) || this._loadDirectory(name, prefix_manifests);
 			},
 			_loadTop: function(dirname, name)
 			{
@@ -949,30 +984,33 @@ void function()
 				else
 					parts = [];
 
-				return this._prefixes.each(this, function(prefix)
+				var prefixes = [];
+				this._prefixes.each(this, function(def)
 				{
-					// If dirname contains the top-level prefix, then consider the top-most one the
-					// "root" of the search.
-					var min = Math.max(-1, parts.indexOf(prefix) - 1),
-						i = parts.length - 1,
-						root, module;
+					prefixes.push(def.prefix);
+				});
 
-					for (; i >= min; --i)
+				var i = parts.length - 1,
+					root, mod;
+
+				for (; i >= -1 && !mod; --i)
+				{
+					root = rootPrefix + parts.slice(0, i + 1).join('/');
+
+					mod = this._prefixes.each(this, function(def)
 					{
-						// Don't search in nested dependency directories.
+						// Don't search in nested dependency prefix directories.
 						// Example: .../node_modules/node_modules
-						if (i >= 0 && parts[i] === prefix)
-							continue;
+						if (i >= 0 && prefixes.indexOf(parts[i]) !== -1)
+							return;
 
-						root = rootPrefix + parts.slice(0, i + 1).join('/');
-						this._log(' Prefix "' + root + '"');
+						this._log(' Prefix "' + joinPath(root, def.prefix) + '"');
 
-						if (module = this._loadNonTop(joinPath(root, prefix, name)))
-							return module;
-					}
+						return this._loadNonTop(joinPath(root, def.prefix, name), def.manifests) || null;
+					}) || false;
+				}
 
-					return null;
-				}) || false;
+				return mod;
 			}
 		});
 		defineProperties(Resolver, { configurable: false }, {
@@ -1012,23 +1050,23 @@ void function()
 			resolver: void 0,
 			fallback: false,
 			defaultInitializers: {
-				js: function(module, source, dirname, needy, global)
+				js: function(mod, source, dirname, needy, global)
 				{
-					Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + module.id)(module, module.exports, module.require, module.id, dirname, needy, global);
+					Function('module', 'exports', 'require', '__filename', '__dirname', '__needy', 'global', source + "\n//@ sourceURL=" + mod.id)(mod, mod.exports, mod.require, mod.id, dirname, needy, global);
 				},
-				json: function(module, source)
+				json: function(mod, source)
 				{
 					if (typeof JSON.parse === 'undefined')
 						throw new Error('JSON modules are not supported');
 
-					module.exports = JSON.parse(source);
+					mod.exports = JSON.parse(source);
 				},
-				node: function(module, source)
+				node: function(mod, source)
 				{
 					if (typeof require === 'undefined')
 						throw new Error('binary modules (.node) are not supported');
 
-					module.exports = require(module.id);
+					mod.exports = require(mod.id);
 				}
 			},
 			init: function(name)
@@ -1139,35 +1177,35 @@ void function()
 			{
 				return this._group(dirname || '[root]', name, function()
 				{
-					var module = this._resolve(dirname, name);
-					if (!(module instanceof Module))
-						module = new Module(name);
+					var mod = this._resolve(dirname, name);
+					if (!(mod instanceof Module))
+						mod = new Module(name);
 
-					if (module.source != null)
-						this._moduleInit(module, name);
-					else if (module.error && !this._allowUnresolved)
-						throw module.error;
+					if (mod.source != null)
+						this._moduleInit(mod, name);
+					else if (mod.error && !this._allowUnresolved)
+						throw mod.error;
 
-					return module.exports;
+					return mod.exports;
 				});
 			},
 			_resolve: function(dirname, name)
 			{
 				return this.resolver.resolve ? this.resolver.resolve(name, dirname) : this.resolver(name, dirname);
 			},
-			_extendModule: function(module, dirname)
+			_extendModule: function(mod, dirname)
 			{
-				defineProperties(module, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), dirname) });
-				defineProperties(module.require, { configurable: false }, { main: this._mainModule });
+				defineProperties(mod, { writable: false, configurable: false }, { require: partial(portable(this, '_require'), dirname) });
+				defineProperties(mod.require, { configurable: false }, { main: this._mainModule });
 			},
-			_moduleInit: function(module, name)
+			_moduleInit: function(mod, name)
 			{
-				var source = module.source;
-				delete module.source;
+				var source = mod.source;
+				delete mod.source;
 
 				if (!this._mainModule && source)
 				{
-					this._mainModule = module;
+					this._mainModule = mod;
 
 					if (this._prerequire && this._prerequire.length > 0)
 					{
@@ -1186,17 +1224,17 @@ void function()
 					{
 						// Resolved to source code.
 
-						var ext = module.id.match(/(?:\.[a-z0-9]*)?$/i)[0].slice(1).toLowerCase(),
-							moduleDirname = dirname(module.id);
+						var ext = mod.id.match(/(?:\.[a-z0-9]*)?$/i)[0].slice(1).toLowerCase(),
+							moduleDirname = dirname(mod.id);
 
-						this._extendModule(module, moduleDirname);
+						this._extendModule(mod, moduleDirname);
 
 						if (this._initializers.hasOwnProperty(ext))
-							this._initializers[ext](module, source, moduleDirname, this, global);
+							this._initializers[ext](mod, source, moduleDirname, this, global);
 						else if (this.defaultInitializers.hasOwnProperty(ext))
-							this.defaultInitializers[ext](module, source, moduleDirname, this, global);
+							this.defaultInitializers[ext](mod, source, moduleDirname, this, global);
 						else if (this.defaultInitializers.hasOwnProperty('js'))
-							this.defaultInitializers.js(module, source, moduleDirname, this, global);
+							this.defaultInitializers.js(mod, source, moduleDirname, this, global);
 						else
 							throw new Error('no suitable initializer for "' + name + '"');
 					}
@@ -1204,22 +1242,22 @@ void function()
 					{
 						// For non-source or fallback resolved modules use null as the new require
 						// root which makes the resolver use its own root.
-						this._extendModule(module, null);
+						this._extendModule(mod, null);
 
 						if (source instanceof Function)
 						{
 							// Resolved to initializer function.
 
-							var returnedExports = source(module, this, global);
+							var returnedExports = source(mod, this, global);
 							if (typeof returnedExports !== 'undefined')
-								module.exports = returnedExports;
+								mod.exports = returnedExports;
 						}
 						else
 						{
 							// The module is unresolved.
 
 							if (this.fallback)
-								module.exports = this.fallback(module.id);
+								mod.exports = this.fallback(mod.id);
 							else
 								throw new Error('failed resolving "' + name + '"');
 						}
@@ -1227,9 +1265,9 @@ void function()
 				}
 				catch (e)
 				{
-					module.error = e;
+					mod.error = e;
 
-					if (this._mainModule === module)
+					if (this._mainModule === mod)
 						this._mainModule = void 0;
 
 					if (!this._allowUnresolved)

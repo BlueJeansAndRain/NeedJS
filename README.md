@@ -304,26 +304,42 @@ Module resolution, logging, and core environment can be customized via an option
         }
     },
 
-    // The extensions (without dots) to try adding to module names. Defaults to
-    // no extension, "js", "json", and finally "node", for Node.js
-    // compatibility. This can be a string, array, or object. If an object,
-    // then the property names are the extensions and the values are integer
-    // priorities. A priority of false will remove an extension.
+    // The extensions (without dots) to try adding to module names. This can
+    // be a string, array, or object. If an object, then the property names
+    // are the extensions and the values are integer priorities. A priority of
+    // false will remove an extension.
+    //
+    // Defaults to "", "js", "json", and finally "node", for Node.js
+    // compatibility.
+    //
     extension: ["", "js", "json", "node"]
 
-    // The manifest name(s) to look for in directory modules. Defaults to
-    // "package.json" for Node.js compatibility. This can be a string, array,
-    // or object. If an object, then the property names are the manifest names
-    // and the values are integer priorities. A priority of false will remove
-    // a manifest name.
-    manifest: ["package.json"],
+    // The manifest name(s) to look for in directory modules. This can be a
+    // string, array, or object. If an object, then the property names are the
+    // manifest names and the values are integer priorities. A priority of
+    // false will remove a manifest name.
+    //
+    // Defaults "package.json" for Node.js compatibility.
+    //
+    manifest: ["package.json", "bower.json", "component.json"],
 
     // The dependency directory name(s) to look for when resolving top-level
-    // module names. Defaults to "node_modules" for Node.js compatibility.
-    // This can be a string, array, or object. If an object, then the property
-    // names are the prefixes and the values are integer priorities. A priority
-    // of false will remove a prefix.
-    prefix: ["node_modules"],
+    // module names. This can be a string, array, or object If an object, then
+    // the property names are the prefixes and the values are integer
+    // priorities. A priority of false will remove a prefix.
+    //
+    // * You can also specify one or more prefix specific manifests using the
+    //   format "prefix:manifest,manifest,...". Manifests specified this way
+    //   will have priority over those set using the "manifest" option.
+    //   Generic manifests will still be tried if no prefix specific manifest
+    //   is found.
+    //
+    // Defaults to "node_modules" for Node.js/Browserify compatibility.
+    //
+    prefix: [
+        "node_modules:package.json",
+        "bower_components:bower.json,component.json"
+    ],
 
     // Allow module names to be resolved to extension-less filenames. This does
     // NOT mean you can or can't pass an extension-less string to require()!
@@ -407,16 +423,17 @@ Class structure outline:
                 * _initPrefix()
                 * _initManifest()
                 * _initAllowExtensionless(options.allowExtensionless)
-                * _getManifestMain(directory)
                 * _normSet(a, b, callback)
                 * _setCore(name, core)
                 * _setExtension(ext, priority)
                 * _setManifest(manifest, priority)
                 * _setPrefix(prefix, priority)
+                * _getManifestMain(path)
                 * _load(path)
                 * _loadFile(name)
-                * _loadDirectory(name)
-                * _loadNonTop(name)
+                * _loadManifest(path, manifests)
+                * _loadDirectory(name, manifests)
+                * _loadNonTop(name, manifests)
                 * _loadTop(dirname, name)
             * _static\_methods_
                 * extend(childConstructor, prototype...)
