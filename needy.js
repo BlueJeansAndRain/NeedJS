@@ -871,7 +871,7 @@ void function()
 			},
 			_load: function(path)
 			{
-				if (!this._allowExtensionless && !(/(^|[\/\\])[\/\\]*\.[\/\\]*$/).test(path))
+				if (!this._allowExtensionless && !(/(^|[\/\\])[^\/\\]*\.[^\/\\]*$/).test(path))
 					return false;
 
 				this._log('  Trying "' + path + '"');
@@ -1165,7 +1165,7 @@ void function()
 				var source = module.source;
 				delete module.source;
 
-				if (!this._mainModule)
+				if (!this._mainModule && source)
 				{
 					this._mainModule = module;
 
