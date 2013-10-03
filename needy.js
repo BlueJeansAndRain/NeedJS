@@ -1,6 +1,6 @@
 void function()
 {
-	var version = "0.2.6";
+	var version = "0.3.0";
 
 	"use strict";
 	/* jshint evil: true */
