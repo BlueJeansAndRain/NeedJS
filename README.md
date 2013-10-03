@@ -542,14 +542,14 @@ For now, the recommended solution is to disable auto- and default-indexes, at le
 #### Nginx
 
 I actually can't seem to find out to turn off default directory index completely in Nginx. If anyone knows how, please let me know.
-```javascript
+```
 location ~ /(node_modules|bower_components) {
     autoindex off;
     index non-existent-filename;
 }
 ```
 #### Apache
-```html
+```
 <Directory ~ /(node_modules|bower_components)>
     Options -Indexes
     DirectoryIndex disabled
