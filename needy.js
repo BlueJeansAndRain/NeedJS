@@ -1112,7 +1112,7 @@ void function()
 
 					this._initializers[ext] = fn;
 
-					this._log('Initializer set: "' + ext + '"');
+					this._log('Initializer added: "' + ext + '"');
 				}
 			},
 			setGet: function(get)
