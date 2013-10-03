@@ -773,11 +773,11 @@ void function()
 			},
 			_initPrefix: function()
 			{
-				this.setPrefix(['node_modules:package.json', 'bower_components:bower.json, component.json']);
+				this.setPrefix('node_modules:package.json');
 			},
 			_initManifest: function()
 			{
-				this.setManifest(['package.json', 'bower.json', 'component.json']);
+				this.setManifest('package.json');
 			},
 			_initAllowExtensionless: function(allowExtensionless)
 			{

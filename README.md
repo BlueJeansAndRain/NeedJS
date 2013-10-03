@@ -211,17 +211,22 @@ Module resolution, logging, and core environment can be customized via an option
     // The main module name to require. When needy is required via HTML script tag, this will can overridden by a "data-needy" attribute.
     main: "main",
 
-    // Called when Needy can't resolve a module name. Defaults to an
-    // existing require method if one is defined in the scope that
-    // required/included Needy.
+    // Called when Needy can't resolve a module name.
+    //
+    // Defaults to an existing require method if one is defined in the scope
+    // that required/included Needy.
+    //
     fallback: function(name) {
         // Return module exports or throw an exception.
     },
 
-    // Define initializers for specific file extensions. There are default
-    // initializers for .js, .json, and .node files. If a file has an
-    // unrecognized extension then the default initializer for .js files
-    // will be used.
+    // Define initializers for specific file extensions. If a file has an
+    // unrecognized extension then the default initializer for .js files will
+    // be used.
+    //
+    // Defaults to built-in initializers for ".js", ".json", and ".node"
+    // extensions.
+    //
     initializers: {
         coffee: function(module, source, dirname, needy, global)
         {
@@ -236,6 +241,9 @@ Module resolution, logging, and core environment can be customized via an option
     // until something requires that top-level name. Prerequires are required
     // immediately before the main module. This should be an array of module
     // names and/or Needy.Module instances.
+    //
+    // Defaults to no prerequires.
+    //
     prerequire: [
         "needy-nodecore",
         new Module("silly-walks", function(module, needy, global)
@@ -247,8 +255,11 @@ Module resolution, logging, and core environment can be customized via an option
     // Throw exceptions when require cannot resolve a module. The CommonJS
     // spec states that exceptions should be thrown if a module cannot be
     // resolved. However, it seems like there might be cases when silently
-    // failing is reasonable. Now exception will be thrown when a module
+    // failing is reasonable. No exception will be thrown when a module
     // cannot be found, if this option is true.
+    //
+    // Defaults to false.
+    //
     allowUnresolved: false,
 
     // Capture log messages from the Needy.Resolver. Defaults to ignoring log
@@ -258,44 +269,58 @@ Module resolution, logging, and core environment can be customized via an option
         Do something with a log message.
     },
 
-    // Whether or not to print log messages to console.log. Defaults to not
-    // using console.log.
+    // Whether or not to print log messages to console.log.
+    //
+    // Defaults to false.
+    //
     console: false,
 
-    // Whether or not to group console messages by require. Defaults to no
-    // grouping. Can be true, false, or "collapse".
+    // Whether or not to group console messages by require. Can be true,
+    // false, or "collapse".
+    //
+    // Defaults to false.
+    //
     consoleGroup: false,
 
-    // Set a custom name resolution implementation. Defaults to a new
-    // Needy.Resolver instance created with the options passed to the Needy
-    // constructor. This can be an object with a "resolve" method or a
-    // function. The method/function will be passed a module name and the
-    // directory of the module that is requiring it. It should return a
-    // Needy.Module instance or derivative. If it cannot resolve the
-    // module name then it can return false, return a module with source
-    // property set to false, or throw an exception.
+    // Set a custom name resolution implementation. This can be an object with
+    // a "resolve" method or a function. The method/function will be passed a
+    // module name and the directory of the module that is requiring it. It
+    // should return a Needy.Module instance or derivative. If it cannot
+    // resolve the module name then it can return false, return a module with
+    // source property set to false, or throw an exception.
+    //
+    // Defaults to a new Needy.Resolver instance created with the options
+    // passed to the Needy constructor.
+    //
     resolver: new Needy.Resolver(options),
 
-    // Syncronously fetch the plain/text at a URI. Defaults to an internal
-    // default method based on Node's file system module or XMLHttpRequest
-    // class, depending on what's available in the environment.
+    // Syncronously fetch the plain/text at a URI.
+    //
+    // Defaults to an internal default method based on Node's file system
+    // module or XMLHttpRequest class, depending on what's available in the
+    // environment.
+    //
     get: function(uri) {
         // Return a string on on success. On failure, return a non-string
         // value or throw an exception.
     },
 
     // The path prefix to use when requiring relative or top-level main
-    // module, prequire, and core module names. Defaults in order to whichever
-    // of the following exists:__dirname, __filename directory part, module.uri
-    // directory part, window.location directory part, or "/". If this is
-    // not an absolute (beginning with /) path, then it is appended to the
-    // default root.
+    // module, prequire, and core module names. If this is not an absolute
+    // (beginning with /) path, then it is appended to the default root.
+    //
+    // Defaults to (in order) whichever of the following exists:__dirname,
+    // __filename directory part, module.uri directory part, window.location
+    // directory part, or "/".
+    //
     root: "/",
 
-    // Core module names mapped to their "real" require name or an
-    // initializer function. Top-level and relative module paths will be
-    // required relative to the root option. The resolver must define an
-    // addCore() method to handle this option.
+    // Core module names mapped to their "real" require name or an initializer
+    // function. Top-level and relative module paths will be required relative
+    // to the root option.
+    //
+    // Defaults to no core modules.
+    //
     core: {
         "process": "./core/process.js",
         "path": function(module, needy, global)
@@ -309,7 +334,7 @@ Module resolution, logging, and core environment can be customized via an option
     // are the extensions and the values are integer priorities. A priority of
     // false will remove an extension.
     //
-    // Defaults to "", "js", "json", and finally "node", for Node.js
+    // Defaults to "", "js", "json", and finally "node", for Node.js/Browserify
     // compatibility.
     //
     extension: ["", "js", "json", "node"]
@@ -319,7 +344,7 @@ Module resolution, logging, and core environment can be customized via an option
     // manifest names and the values are integer priorities. A priority of
     // false will remove a manifest name.
     //
-    // Defaults "package.json" for Node.js compatibility.
+    // Defaults "package.json" for Node.js/Browserify compatibility.
     //
     manifest: ["package.json", "bower.json", "component.json"],
 
@@ -334,7 +359,8 @@ Module resolution, logging, and core environment can be customized via an option
     //   Generic manifests will still be tried if no prefix specific manifest
     //   is found.
     //
-    // Defaults to "node_modules" for Node.js/Browserify compatibility.
+    // Defaults to "node_modules:package.json" for Node.js/Browserify
+    // compatibility.
     //
     prefix: [
         "node_modules:package.json",
@@ -577,7 +603,7 @@ Known Issues
 >
 > As of this version, the default resolver behavior is to skip files/directories that do not have an extension. Because 99% of all directory names do not have an extension and 99% of all files do, this issue is mostly avoided.
 
-Default or auto indexes cause strange require failures. If you request top-level module "foo" lets say from the document root to make it simple. The first path that Needy tries to fetch from the server is "/node_modules/foo". If "/node_modules/foo/index.html" exists and your server is configured to return index.html as the default index for directories, then Needy is going to get a 200 response, but it's going to contain HTML instead of JavaScript. Likewise, if you're server is configured to return an auto-index (auto generated list of files the directory contains), then again it's going to get a 200 response with HTML.
+Default or auto indexes cause strange require failures. If you request top-level module "foo" lets say from the document root to make it simple. The first path that Needy tries to fetch from the server is "/node_modules/foo". If "/node_modules/foo/index.html" exists and your server is configured to return index.html as the default index for directories, then Needy is going to get a 200 response, but it's going to contain HTML instead of JavaScript. Likewise, if your server is configured to return an auto-index (auto generated list of files the directory contains), then again it's going to get a 200 response with HTML.
 
 Unfortunately, there's really no way to detect from the client when the server returns something other than the literal path requested. Detecting HTML was suggested and considered, but Needy supports custom initializers meaning it's an entirely valid use-case to intentially require HTML. So, for detection to work it would have to be the initializer's responsibility to detect invalid source. But by the time the initializer is called, the resolver already considers the matter closed.
 
