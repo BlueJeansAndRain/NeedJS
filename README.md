@@ -525,3 +525,41 @@ What's It For?
 Initially, Needy was created to be a development compliment to Browserify and/or Google's Closure Compiler. An easier way to work with CommonJS modular code in development. It has since evolved into a more complete solution, with command line support, extensibility features, and environment feature detection.
 
 It's not an obvious choice for production use since it makes no real attempt to "fix" the difficulties in implementing browser modules. It's expected to generate 404 warnings while resolving and doesn't care about load times. But it's designed to be extended, so, given reasonable network speeds, good caching policies, modern browser pipelining, and a little server support, it is certainly possible. However, for anything with a decent amount of traffic or a large code base, compiling is probably still the way to go. It's the great JavaScript equalizer.
+
+Known Issues
+------------
+
+### Problem
+
+Default or auto indexes cause strange require failures. If you request top-level module "foo" lets say from the document root to make it simple. The first path that Needy tries to fetch from the server is "/node_modules/foo". If "/node_modules/foo/index.html" exists and your server is configured to return index.html as the default index for directories, then Needy is going to get a 200 response, but it's going to contain HTML instead of JavaScript. Likewise, if you're server is configured to return an auto-index (auto generated list of files the directory contains), then again it's going to get a 200 response with HTML.
+
+Unfortunately, there's really no way to detect from the client when the server returns something other than the literal path requested. Detecting HTML was suggested and considered, but Needy supports custom initializers meaning it's an entirely valid use-case to intentially require HTML. So, for detection to work it would have to be the initializer's responsibility to detect invalid source. But by the time the initializer is called, the resolver already considers the matter closed.
+
+### Solution
+
+For now, the recommended solution is to disable auto- and default-indexes, at least in prefix directories (node_modules, bower_components, etc).
+
+#### Nginx
+
+I actually can't seem to find out to turn off default directory index completely in Nginx. If anyone knows how, please let me know.
+```javascript
+location ~ /(node_modules|bower_components) {
+    autoindex off;
+    index non-existent-filename;
+}
+```
+#### Apache
+```html
+<Directory ~ /(node_modules|bower_components)>
+    Options -Indexes
+    DirectoryIndex disabled
+</Directory>
+```
+
+#### Node.js
+
+There are a lot of ways to serve up static files from Node. The good news is, since it's Node, I'm sure there's a way not to auto- or default-index. The bad news is, that it's specific to whatever module/stack you are using.
+
+#### Alternatively
+
+You can use the `extension` option to lower the resolution priority of extension-less paths. `extension: { "": -1 }` causes it to be tried after all other extensions, which have a priority of 0. `extension: { "": false }` would disable extension-less paths completely.
