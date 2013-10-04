@@ -478,6 +478,7 @@ Class structure outline:
             * csv(array)
             * defaultGetNode(path)
             * defaultGetBrowser(path)
+            * getCwd()
     * _properties_
         * parent = Needy | null
         * options = Object

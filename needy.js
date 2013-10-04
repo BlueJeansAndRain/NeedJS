@@ -260,7 +260,7 @@ void function()
 			return req.responseText;
 		}
 
-		var cwd = (function()
+		function getCwd()
 		{
 			var cwd = '/';
 			if (typeof __dirname === 'string')
@@ -280,7 +280,9 @@ void function()
 			// Remove the trailing slashes, making sure to leave one leading slash if the path
 			// is nothing but slashes.
 			return cwd.replace(/(?!^)[\/\\]+$/, '');
-		}());
+		}
+
+		var cwd = getCwd();
 
 		var Logger = defineProperties({}, { configurable: false }, {
 			setLog: function(log)
@@ -1377,7 +1379,8 @@ void function()
 				isValidPath: isValidPath,
 				csv: csv,
 				defaultGetNode: defaultGetNode,
-				defaultGetBrowser: defaultGetBrowser
+				defaultGetBrowser: defaultGetBrowser,
+				getCwd: getCwd
 			}),
 		});
 		defineProperties(Needy, { configurable: false }, {
