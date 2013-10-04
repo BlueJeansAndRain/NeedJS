@@ -549,6 +549,9 @@ void function()
 					dirname = this._root;
 				}
 
+				if (!(mod instanceof Name))
+					mode = new Name(mod);
+
 				return this._resolve(dirname, mod);
 			},
 			setGet: function(fn)
@@ -679,9 +682,6 @@ void function()
 			_allowExtensionless: false,
 			_resolve: function(dirname, name)
 			{
-				if (!(name instanceof Name))
-					name = new Name(name);
-
 				if (name.topLevel)
 					this._log('Resolving top-level "' + name.value + '" in "' + dirname + '"');
 				else if (!isAbsPath(name.value))
