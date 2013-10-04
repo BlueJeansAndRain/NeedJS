@@ -550,7 +550,7 @@ void function()
 				}
 
 				if (!(mod instanceof Name))
-					mode = new Name(mod);
+					mod = new Name(mod);
 
 				return this._resolve(dirname, mod);
 			},
@@ -636,7 +636,7 @@ void function()
 			{
 				this._normSet(prefix, priority, function(prefix, priority)
 				{
-					var delim = indexIn(prefix, ':'),
+					var delim = prefix.indexOf(':'),
 						manifests;
 
 					if (delim >= 0)
@@ -806,7 +806,7 @@ void function()
 				if (!(core instanceof Function) && !isValidPath(core))
 					throw new Error("invalid core value");
 				if (typeof core === 'string')
-					core = joinPath(this._root, core);
+					core = new Name(joinPath(this._root, core));
 
 				if (!(name instanceof Name))
 					name = new Name(name);
@@ -825,20 +825,20 @@ void function()
 			},
 			_setManifest: function(manifest, priority)
 			{
-				if (!isValidPath(manifest) || indexIn(manifest, '/') !== -1)
+				if (!isValidPath(manifest) || manifest.indexOf('/') !== -1)
 					throw new Error('invalid manifest name');
 
 				this._manifests.set(manifest, priority);
 			},
 			_setPrefix: function(prefix, manifests, priority)
 			{
-				if (!isValidPath(prefix) || indexIn(prefix, '/') !== -1)
+				if (!isValidPath(prefix) || prefix.indexOf('/') !== -1)
 					throw new Error('invalid prefix name');
 
 				if (manifests instanceof Array)
 				{
 					var i = manifests.length;
-					while (i--) if (!isValidPath(manifests[i]) || indexIn(manifests[i], '/') !== -1)
+					while (i--) if (!isValidPath(manifests[i]) || manifests[i].indexOf('/') !== -1)
 						throw new Error('invalid manifest name');
 				}
 
@@ -948,9 +948,6 @@ void function()
 				{
 					return this._manifests.each(this, function(manifest)
 					{
-						if (indexIn(prefix_manifests, manifest) !== -1)
-							return;
-
 						return this._getManifestMain(joinPath(path, manifest)) || null;
 					}) || false;
 				}
