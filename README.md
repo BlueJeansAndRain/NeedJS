@@ -503,7 +503,7 @@ Class structure outline:
         * init(name)
         * require(name, dirname)
         * resolve(name, dirname)
-        * addInitializer(extension, init_function)
+        * setInitializer(extension, init_function)
         * setGet(get)
         * setRoot(root)
         * setCore(name, core)
