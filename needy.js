@@ -399,9 +399,12 @@ void function()
 			extend: partial(extendClass, Name)
 		});
 
-		function PriorityList()
+		function PriorityList(comparer)
 		{
 			this._list = [];
+
+			if (comparer instanceof Function)
+				this._comparer = comparer;
 		}
 		defineProperties(PriorityList.prototype, { configurable: false }, {
 			set: function(value, priority)
@@ -414,7 +417,7 @@ void function()
 				i = this._list.length;
 				while (i--)
 				{
-					if (this._list[i].value === value)
+					if (this._comparer(this._list[i].value, value))
 					{
 						this._list.splice(i, 1);
 						break;
@@ -470,7 +473,11 @@ void function()
 			{
 				return csv(this.toArray());
 			},
-			_list: void 0
+			_list: void 0,
+			_comparer: function(a, b)
+			{
+				return a === b;
+			}
 		});
 
 		function Module(id, source)
@@ -511,7 +518,10 @@ void function()
 			this._core = {};
 			this._extensions = new PriorityList();
 			this._manifests = new PriorityList();
-			this._prefixes = new PriorityList();
+			this._prefixes = new PriorityList(function(a, b)
+			{
+				return a.value === b.value;
+			});
 
 			this._group("Resolver Initialize", null, function()
 			{
@@ -647,14 +657,14 @@ void function()
 						prefix = prefix.slice(0, delim);
 					}
 
+					this._setPrefix(prefix, manifests, priority);
+
 					if (priority === false)
 					{
-						this._prefixes.set(prefix, false);
 						this._log('Prefix removed: "' + prefix + '"');
 					}
 					else
 					{
-						this._setPrefix(prefix, manifests, priority);
 						if (manifests)
 							this._log('Prefix added: "' + prefix + '" (manifests: ' + csv(manifests) + ')');
 						else
