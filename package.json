@@ -1,6 +1,6 @@
 {
   "name": "needy",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "CommonJS modules for the browser, Node.js, or any other JavaScript environment.",
   "main": "./needy.js",
   "bin": {
