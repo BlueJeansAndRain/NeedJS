@@ -3,3 +3,4 @@
 package.json:/"version"\s*:\s*\S*/
 bower.json:/"version"\s*:\s*\S*/
 needy.js:/\bvar\s+version\s*=[^;]+;/
+lib/main.js:/\bvar\s+version\s*=[^;]+;/
