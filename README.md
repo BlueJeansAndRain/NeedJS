@@ -252,16 +252,6 @@ Module resolution, logging, and core environment can be customized via an option
         })
     ],
 
-    // Throw exceptions when require cannot resolve a module. The CommonJS
-    // spec states that exceptions should be thrown if a module cannot be
-    // resolved. However, it seems like there might be cases when silently
-    // failing is reasonable. No exception will be thrown when a module
-    // cannot be found, if this option is true.
-    //
-    // Defaults to false.
-    //
-    allowUnresolved: false,
-
     // Capture log messages from the Needy.Resolver. Defaults to ignoring log
     // messages.
     log: function(message)
@@ -286,8 +276,7 @@ Module resolution, logging, and core environment can be customized via an option
     // a "resolve" method or a function. The method/function will be passed a
     // module name and the directory of the module that is requiring it. It
     // should return a Needy.Module instance or derivative. If it cannot
-    // resolve the module name then it can return false, return a module with
-    // source property set to false, or throw an exception.
+    // resolve the module name then it can return false, or throw an exception.
     //
     // Defaults to a new Needy.Resolver instance created with the options
     // passed to the Needy constructor.
