@@ -1,6 +1,6 @@
 void function()
 {
-	var version = "0.0.0";
+	var version = "0.4.0";
 
 	"use strict";
 	/* globals module, define */
