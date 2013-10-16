@@ -70,8 +70,7 @@ var nonexistant = [
 	'../g/h/',
 	'/i/j',
 	'/k/l/',
-	'm',
-	'n/o'
+	'm'
 ];
 
 var i = 0, max = nonexistant.length;

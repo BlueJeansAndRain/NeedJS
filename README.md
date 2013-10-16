@@ -394,7 +394,7 @@ Class structure outline:
 * `Needy`
     * _static_
         * `Logger`
-        * `Name`
+        * `Identity`
         * `PriorityList`
             * _properties_
                 * _list = Array
