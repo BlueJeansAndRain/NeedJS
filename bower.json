@@ -1,7 +1,7 @@
 {
   "name": "needy",
   "main": "needy.js",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "homepage": "https://github.com/BlueJeansAndRain/needy",
   "authors": [
     "Chris Ackerman <chris@bonzidev.com>"
